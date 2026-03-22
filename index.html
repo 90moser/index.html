@@ -23,7 +23,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         // ==================== UTILITÁRIOS ====================
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -99,6 +99,7 @@
             const [showSaleModal, setShowSaleModal] = useState(false);
             const [showCustomerModal, setShowCustomerModal] = useState(false);
             const [showCreditModal, setShowCreditModal] = useState(false);
+            const [showImportModal, setShowImportModal] = useState(false);
             
             // Formulários
             const [productForm, setProductForm] = useState({
@@ -118,6 +119,9 @@
             // Configurações
             const [lowStockThreshold, setLowStockThreshold] = useState(3);
             const [expiryAlertDays, setExpiryAlertDays] = useState(30);
+            
+            // Ref para input de arquivo
+            const fileInputRef = useRef(null);
 
             // ==================== PERSISTÊNCIA ====================
             useEffect(() => {
@@ -269,7 +273,6 @@
                 };
                 setSales([...sales, newSale]);
                 
-                // Se for venda a prazo, criar registro de crédito
                 if (saleForm.paymentMethod === 'credito') {
                     setCreditForm({
                         saleId: newSale.id,
@@ -321,47 +324,124 @@
                 ));
             };
 
+            // ==================== EXPORTAR ====================
             const exportData = () => {
                 const data = {
-                    reportDate: new Date().toISOString(),
+                    exportDate: new Date().toISOString(),
+                    version: '1.1',
                     products,
                     purchases,
                     sales,
                     customers,
                     creditSales,
-                    financialReport
+                    config: { lowStockThreshold, expiryAlertDays }
                 };
                 
-                // CSV Export
-                const csvContent = [
-                    ['Tipo', 'Data', 'Produto', 'Quantidade', 'Valor', 'Cliente'],
-                    ...sales.map(s => ['Venda', s.date, products.find(p => p.id === s.productId)?.name || '', s.quantity, s.price, customers.find(c => c.id === s.customerId)?.name || '']),
-                    ...purchases.map(p => ['Compra', p.date, products.find(p => p.id === p.productId)?.name || '', p.quantity, p.price, ''])
-                ].map(row => row.join(',')).join('\n');
-
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `relatorio_boticario_${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `backup_boticario_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            // ==================== IMPORTAR (NOVO!) ====================
+            const handleImportFile = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        // Validar estrutura
+                        if (!data.products || !data.sales) {
+                            alert('Arquivo inválido! Não é um backup do Boticário.');
+                            return;
+                        }
+                        
+                        // Confirmar importação
+                        const confirmMsg = `
+                            DADOS ENCONTRADOS:
+                            • Produtos: ${data.products.length}
+                            • Vendas: ${data.sales?.length || 0}
+                            • Compras: ${data.purchases?.length || 0}
+                            • Clientes: ${data.customers?.length || 0}
+                            
+                            ⚠️ Isso vai SUBSTITUIR todos os dados atuais!
+                            Deseja continuar?
+                        `;
+                        
+                        if (confirm(confirmMsg)) {
+                            // Importar dados
+                            if (data.products) setProducts(data.products);
+                            if (data.purchases) setPurchases(data.purchases);
+                            if (data.sales) setSales(data.sales);
+                            if (data.customers) setCustomers(data.customers);
+                            if (data.creditSales) setCreditSales(data.creditSales);
+                            if (data.config) {
+                                setLowStockThreshold(data.config.lowStockThreshold || 3);
+                                setExpiryAlertDays(data.config.expiryAlertDays || 30);
+                            }
+                            
+                            alert('✅ Dados importados com sucesso!');
+                            setShowImportModal(false);
+                            setActiveTab('dashboard');
+                        }
+                        
+                    } catch (error) {
+                        alert('Erro ao ler arquivo! Verifique se é um JSON válido.');
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+                
+                // Limpar input
+                event.target.value = '';
+            };
+
+            const triggerImport = () => {
+                fileInputRef.current.click();
             };
 
             // ==================== RENDER ====================
             return (
                 <div className="min-h-screen">
+                    {/* Input de arquivo invisível */}
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImportFile}
+                        accept=".json"
+                        style={{ display: 'none' }}
+                    />
+
                     {/* Header */}
                     <header className="boticario-gradient text-white p-6 shadow-lg">
-                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                        <div className="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-3">
                             <div>
-                                <h1 className="text-3xl font-bold"><i className="fas fa-store mr-3"></i>Gestão Revenda O Boticário</h1>
-                                <p className="text-white/80 mt-1">Sistema completo de controle de vendas e estoque</p>
+                                <h1 className="text-2xl md:text-3xl font-bold"><i className="fas fa-store mr-3"></i>Gestão Revenda O Boticário</h1>
+                                <p className="text-white/80 mt-1 text-sm">Sistema completo de controle de vendas e estoque</p>
                             </div>
-                            <div className="flex gap-3">
-                                <button onClick={exportData} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                            <div className="flex gap-2 flex-wrap">
+                                <button 
+                                    onClick={triggerImport} 
+                                    className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition text-sm"
+                                >
+                                    <i className="fas fa-upload mr-2"></i>Importar
+                                </button>
+                                <button 
+                                    onClick={exportData} 
+                                    className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition text-sm"
+                                >
                                     <i className="fas fa-download mr-2"></i>Exportar
                                 </button>
-                                <button onClick={() => setActiveTab('config')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                                <button 
+                                    onClick={() => setActiveTab('config')} 
+                                    className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition"
+                                >
                                     <i className="fas fa-cog"></i>
                                 </button>
                             </div>
@@ -384,7 +464,7 @@
                                     <button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
-                                        className={`px-6 py-4 flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
+                                        className={`px-4 md:px-6 py-4 flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
                                             activeTab === tab.id 
                                                 ? 'border-purple-600 text-purple-600' 
                                                 : 'border-transparent text-gray-600 hover:text-purple-600'
@@ -399,11 +479,11 @@
                     </nav>
 
                     {/* Main Content */}
-                    <main className="max-w-7xl mx-auto p-6">
+                    <main className="max-w-7xl mx-auto p-4 md:p-6">
                         {/* DASHBOARD */}
                         {activeTab === 'dashboard' && (
                             <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <StatCard 
                                         title="Vendas do Mês" 
                                         value={formatCurrency(financialReport.totalSold)} 
@@ -431,7 +511,7 @@
                                 </div>
 
                                 {/* Alertas */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {lowStockProducts.length > 0 && (
                                         <div className="alert-red rounded-lg p-4">
                                             <h3 className="font-bold text-red-800 mb-2">
@@ -492,19 +572,19 @@
 
                         {/* PRODUTOS */}
                         {activeTab === 'products' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Cadastro de Produtos</h2>
                                     <button 
                                         onClick={() => setShowProductModal(true)}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition"
+                                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"
                                     >
                                         <i className="fas fa-plus mr-2"></i>Novo Produto
                                     </button>
                                 </div>
 
-                                <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                                    <table className="w-full">
+                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+                                    <table className="w-full min-w-[800px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Produto</th>
@@ -566,19 +646,19 @@
 
                         {/* VENDAS */}
                         {activeTab === 'sales' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Registro de Vendas</h2>
                                     <button 
                                         onClick={() => setShowSaleModal(true)}
-                                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition"
+                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm"
                                     >
                                         <i className="fas fa-plus mr-2"></i>Nova Venda
                                     </button>
                                 </div>
 
-                                <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                                    <table className="w-full">
+                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+                                    <table className="w-full min-w-[900px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Data</th>
@@ -630,31 +710,18 @@
 
                         {/* COMPRAS */}
                         {activeTab === 'purchases' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Gestão de Compras</h2>
-                                    <button 
-                                        onClick={() => {
-                                            if (products.length === 0) {
-                                                alert('Cadastre produtos primeiro!');
-                                                return;
-                                            }
-                                            setShowSaleModal(true);
-                                        }}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition"
-                                        disabled={products.length === 0}
-                                    >
-                                        <i className="fas fa-plus mr-2"></i>Nova Compra
-                                    </button>
                                 </div>
 
-                                <div className="bg-white rounded-lg shadow-md p-6">
+                                <div className="bg-white rounded-lg shadow-md p-4">
                                     <h3 className="text-lg font-bold mb-4">Registrar Entrada de Mercadoria</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                                         <select 
                                             value={purchaseForm.productId}
                                             onChange={(e) => setPurchaseForm({...purchaseForm, productId: e.target.value})}
-                                            className="border rounded-lg p-3"
+                                            className="border rounded-lg p-3 text-sm"
                                         >
                                             <option value="">Selecione o Produto</option>
                                             {products.map(p => (
@@ -666,25 +733,25 @@
                                             placeholder="Quantidade"
                                             value={purchaseForm.quantity}
                                             onChange={(e) => setPurchaseForm({...purchaseForm, quantity: e.target.value})}
-                                            className="border rounded-lg p-3"
+                                            className="border rounded-lg p-3 text-sm"
                                         />
                                         <input 
                                             type="number" 
                                             placeholder="Preço Unitário (R$)"
                                             value={purchaseForm.price}
                                             onChange={(e) => setPurchaseForm({...purchaseForm, price: e.target.value})}
-                                            className="border rounded-lg p-3"
+                                            className="border rounded-lg p-3 text-sm"
                                         />
                                         <input 
                                             type="date"
                                             value={purchaseForm.date}
                                             onChange={(e) => setPurchaseForm({...purchaseForm, date: e.target.value})}
-                                            className="border rounded-lg p-3"
+                                            className="border rounded-lg p-3 text-sm"
                                         />
                                     </div>
                                     <button 
                                         onClick={handleAddPurchase}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm"
                                     >
                                         <i className="fas fa-save mr-2"></i>Registrar Compra
                                     </button>
@@ -701,8 +768,8 @@
                                     )}
                                 </div>
 
-                                <div className="bg-white rounded-lg shadow-md overflow-hidden mt-6">
-                                    <table className="w-full">
+                                <div className="bg-white rounded-lg shadow-md overflow-x-auto mt-4">
+                                    <table className="w-full min-w-[600px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Data</th>
@@ -733,52 +800,38 @@
 
                         {/* CLIENTES */}
                         {activeTab === 'customers' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Gestão de Clientes (CRM)</h2>
                                     <button 
                                         onClick={() => setShowCustomerModal(true)}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition"
+                                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"
                                     >
                                         <i className="fas fa-user-plus mr-2"></i>Novo Cliente
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {customers.map(c => {
                                         const customerSales = sales.filter(s => s.customerId === c.id);
                                         const totalSpent = customerSales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
                                         
                                         return (
-                                            <div key={c.id} className="bg-white rounded-lg shadow-md p-6 card-hover">
-                                                <div className="flex items-center gap-4 mb-4">
-                                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                                        <i className="fas fa-user text-purple-600 text-xl"></i>
+                                            <div key={c.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
+                                                <div className="flex items-center gap-3 mb-3">
+                                                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                                        <i className="fas fa-user text-purple-600"></i>
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-bold text-lg">{c.name}</h3>
+                                                        <h3 className="font-bold">{c.name}</h3>
                                                         <p className="text-gray-500 text-sm">{c.phone || 'Sem telefone'}</p>
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2 text-sm">
+                                                <div className="space-y-1 text-sm">
                                                     <p><i className="fas fa-envelope mr-2"></i>{c.email || 'Sem email'}</p>
                                                     <p><i className="fas fa-shopping-bag mr-2"></i>{customerSales.length} compras</p>
                                                     <p><i className="fas fa-coins mr-2"></i>Total: {formatCurrency(totalSpent)}</p>
                                                 </div>
-                                                {customerSales.length > 0 && (
-                                                    <div className="mt-4 pt-4 border-t">
-                                                        <p className="text-xs text-gray-500 mb-2">Últimas compras:</p>
-                                                        {customerSales.slice(-3).reverse().map(s => {
-                                                            const product = products.find(p => p.id === s.productId);
-                                                            return (
-                                                                <div key={s.id} className="text-xs flex justify-between py-1">
-                                                                    <span>{formatDate(s.date)} - {product?.name}</span>
-                                                                    <span className="font-medium">{formatCurrency(s.price * s.quantity)}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
                                             </div>
                                         );
                                     })}
@@ -794,24 +847,24 @@
 
                         {/* FIADO */}
                         {activeTab === 'credits' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Controle de Fiado</h2>
                                     <button 
                                         onClick={() => setShowCreditModal(true)}
-                                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg transition"
+                                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition text-sm"
                                     >
                                         <i className="fas fa-plus mr-2"></i>Novo Registro
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {/* Pendentes */}
-                                    <div className="bg-white rounded-lg shadow-md p-6">
-                                        <h3 className="text-lg font-bold text-red-600 mb-4">
+                                    <div className="bg-white rounded-lg shadow-md p-4">
+                                        <h3 className="text-lg font-bold text-red-600 mb-3">
                                             <i className="fas fa-clock mr-2"></i>Pendentes
                                         </h3>
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             {pendingCreditSales.map(c => {
                                                 const sale = sales.find(s => s.id === c.saleId);
                                                 const product = products.find(p => p.id === sale?.productId);
@@ -819,20 +872,20 @@
                                                 const isOverdue = new Date(c.dueDate) < new Date();
                                                 
                                                 return (
-                                                    <div key={c.id} className={`p-4 rounded-lg border-l-4 ${isOverdue ? 'alert-red' : 'alert-yellow'}`}>
+                                                    <div key={c.id} className={`p-3 rounded-lg border-l-4 ${isOverdue ? 'alert-red' : 'alert-yellow'}`}>
                                                         <div className="flex justify-between items-start">
                                                             <div>
-                                                                <p className="font-bold">{customer?.name || 'Cliente não informado'}</p>
-                                                                <p className="text-sm text-gray-600">{product?.name || 'Produto não encontrado'}</p>
-                                                                <p className="text-sm">Vence: {formatDate(c.dueDate)}</p>
+                                                                <p className="font-bold text-sm">{customer?.name || 'Cliente não informado'}</p>
+                                                                <p className="text-xs text-gray-600">{product?.name || 'Produto não encontrado'}</p>
+                                                                <p className="text-xs">Vence: {formatDate(c.dueDate)}</p>
                                                             </div>
                                                             <div className="text-right">
-                                                                <p className="font-bold text-lg">{formatCurrency(c.amount)}</p>
+                                                                <p className="font-bold">{formatCurrency(c.amount)}</p>
                                                                 <button 
                                                                     onClick={() => markCreditAsPaid(c.id)}
-                                                                    className="mt-2 text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                                                    className="mt-1 text-xs bg-green-600 text-white px-2 py-1 rounded"
                                                                 >
-                                                                    <i className="fas fa-check mr-1"></i>Marcar Pago
+                                                                    <i className="fas fa-check mr-1"></i>Pago
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -840,27 +893,27 @@
                                                 );
                                             })}
                                             {pendingCreditSales.length === 0 && (
-                                                <p className="text-gray-500 text-center py-4">Nenhuma venda pendente</p>
+                                                <p className="text-gray-500 text-center py-4 text-sm">Nenhuma venda pendente</p>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Pagos */}
-                                    <div className="bg-white rounded-lg shadow-md p-6">
-                                        <h3 className="text-lg font-bold text-green-600 mb-4">
+                                    <div className="bg-white rounded-lg shadow-md p-4">
+                                        <h3 className="text-lg font-bold text-green-600 mb-3">
                                             <i className="fas fa-check-circle mr-2"></i>Pagos
                                         </h3>
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             {creditSales.filter(c => c.status === 'pago').map(c => {
                                                 const sale = sales.find(s => s.id === c.saleId);
                                                 const customer = sale ? customers.find(cust => cust.id === sale.customerId) : null;
                                                 
                                                 return (
-                                                    <div key={c.id} className="p-4 rounded-lg border-l-4 alert-green">
+                                                    <div key={c.id} className="p-3 rounded-lg border-l-4 alert-green">
                                                         <div className="flex justify-between">
                                                             <div>
-                                                                <p className="font-bold">{customer?.name || 'Cliente não informado'}</p>
-                                                                <p className="text-sm text-gray-600">Pago em: {formatDate(c.createdAt)}</p>
+                                                                <p className="font-bold text-sm">{customer?.name || 'Cliente não informado'}</p>
+                                                                <p className="text-xs text-gray-600">Pago em: {formatDate(c.createdAt)}</p>
                                                             </div>
                                                             <p className="font-bold text-green-600">{formatCurrency(c.amount)}</p>
                                                         </div>
@@ -868,7 +921,7 @@
                                                 );
                                             })}
                                             {creditSales.filter(c => c.status === 'pago').length === 0 && (
-                                                <p className="text-gray-500 text-center py-4">Nenhum pagamento registrado</p>
+                                                <p className="text-gray-500 text-center py-4 text-sm">Nenhum pagamento registrado</p>
                                             )}
                                         </div>
                                     </div>
@@ -878,104 +931,21 @@
 
                         {/* RELATÓRIOS */}
                         {activeTab === 'reports' && (
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gray-800">Relatórios Financeiros</h2>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
-                                        <p className="text-green-100">Total Vendido (Mês)</p>
-                                        <p className="text-3xl font-bold">{formatCurrency(financialReport.totalSold)}</p>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
+                                        <p className="text-green-100 text-sm">Total Vendido (Mês)</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(financialReport.totalSold)}</p>
                                     </div>
-                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-6">
-                                        <p className="text-red-100">Total Investido (Mês)</p>
-                                        <p className="text-3xl font-bold">{formatCurrency(financialReport.totalInvested)}</p>
+                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4">
+                                        <p className="text-red-100 text-sm">Total Investido (Mês)</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(financialReport.totalInvested)}</p>
                                     </div>
-                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
-                                        <p className="text-purple-100">Lucro Líquido (Mês)</p>
-                                        <p className="text-3xl font-bold">{formatCurrency(financialReport.totalProfit)}</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-lg shadow-md p-6">
-                                    <h3 className="text-xl font-bold mb-4">Resumo do Mês</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <h4 className="font-bold text-gray-700 mb-3">Vendas Realizadas</h4>
-                                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                                                {financialReport.monthlySales.map(s => {
-                                                    const product = products.find(p => p.id === s.productId);
-                                                    return (
-                                                        <div key={s.id} className="flex justify-between p-2 bg-gray-50 rounded">
-                                                            <span>{formatDate(s.date)} - {product?.name}</span>
-                                                            <span className="font-medium">{formatCurrency(s.price * s.quantity)}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-700 mb-3">Compras Realizadas</h4>
-                                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                                                {financialReport.monthlyPurchases.map(p => {
-                                                    const product = products.find(prod => prod.id === p.productId);
-                                                    return (
-                                                        <div key={p.id} className="flex justify-between p-2 bg-gray-50 rounded">
-                                                            <span>{formatDate(p.date)} - {product?.name}</span>
-                                                            <span className="font-medium">{formatCurrency(p.price * p.quantity)}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-lg shadow-md p-6">
-                                    <h3 className="text-xl font-bold mb-4">Margem de Lucro por Produto</h3>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="p-3 text-left">Produto</th>
-                                                    <th className="p-3 text-left">Preço Médio</th>
-                                                    <th className="p-3 text-left">Vendas</th>
-                                                    <th className="p-3 text-left">Lucro Total</th>
-                                                    <th className="p-3 text-left">Margem %</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {products.map(p => {
-                                                    const productSales = sales.filter(s => s.productId === p.id);
-                                                    const totalRevenue = productSales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
-                                                    const avgPrice = calculateAveragePrice(p.id);
-                                                    const totalCost = productSales.reduce((sum, s) => sum + (avgPrice * s.quantity), 0);
-                                                    const profit = totalRevenue - totalCost;
-                                                    const margin = totalRevenue > 0 ? ((profit / totalRevenue) * 100) : 0;
-                                                    
-                                                    return (
-                                                        <tr key={p.id} className="border-t">
-                                                            <td className="p-3">{p.name}</td>
-                                                            <td className="p-3">{formatCurrency(avgPrice)}</td>
-                                                            <td className="p-3">{productSales.length}</td>
-                                                            <td className={`p-3 font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                {formatCurrency(profit)}
-                                                            </td>
-                                                            <td className="p-3">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                                                                        <div 
-                                                                            className={`h-2 rounded-full ${margin >= 30 ? 'bg-green-500' : margin >= 15 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                                                            style={{ width: `${Math.min(Math.abs(margin), 100)}%` }}
-                                                                        ></div>
-                                                                    </div>
-                                                                    <span>{margin.toFixed(1)}%</span>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
+                                        <p className="text-purple-100 text-sm">Lucro Líquido (Mês)</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(financialReport.totalProfit)}</p>
                                     </div>
                                 </div>
                             </div>
@@ -983,34 +953,34 @@
 
                         {/* CONFIGURAÇÕES */}
                         {activeTab === 'config' && (
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gray-800">Configurações</h2>
                                 
-                                <div className="bg-white rounded-lg shadow-md p-6 max-w-md">
-                                    <div className="space-y-4">
+                                <div className="bg-white rounded-lg shadow-md p-4 max-w-md">
+                                    <div className="space-y-3">
                                         <div>
-                                            <label className="block text-gray-700 font-medium mb-2">
+                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
                                                 Limite de Estoque Baixo (unidades)
                                             </label>
                                             <input 
                                                 type="number" 
                                                 value={lowStockThreshold}
                                                 onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 3)}
-                                                className="w-full border rounded-lg p-3"
+                                                className="w-full border rounded-lg p-3 text-sm"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-gray-700 font-medium mb-2">
+                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
                                                 Alerta de Validade (dias)
                                             </label>
                                             <input 
                                                 type="number" 
                                                 value={expiryAlertDays}
                                                 onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 30)}
-                                                className="w-full border rounded-lg p-3"
+                                                className="w-full border rounded-lg p-3 text-sm"
                                             />
                                         </div>
-                                        <div className="pt-4 border-t">
+                                        <div className="pt-3 border-t">
                                             <button 
                                                 onClick={() => {
                                                     if (confirm('Tem certeza? Isso apagará todos os dados!')) {
@@ -1018,7 +988,7 @@
                                                         window.location.reload();
                                                     }
                                                 }}
-                                                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition w-full"
+                                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition w-full text-sm"
                                             >
                                                 <i className="fas fa-trash mr-2"></i>Limpar Todos os Dados
                                             </button>
@@ -1269,7 +1239,7 @@
                                 Sistema de Gestão para Revenda O Boticário
                             </p>
                             <p className="text-gray-500 text-sm mt-2">
-                                Dados armazenados localmente no navegador • {new Date().getFullYear()}
+                                Dados armazenados localmente • Use Exportar/Importar para backup • {new Date().getFullYear()}
                             </p>
                         </div>
                     </footer>
