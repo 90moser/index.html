@@ -17,6 +17,10 @@
         .modal-overlay { background-color: rgba(0,0,0,0.5); }
         .card-hover { transition: all 0.3s ease; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .btn-edit { background-color: #3b82f6; }
+        .btn-edit:hover { background-color: #2563eb; }
+        .btn-delete { background-color: #ef4444; }
+        .btn-delete:hover { background-color: #dc2626; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -50,7 +54,6 @@
 
         // ==================== COMPONENTES ====================
 
-        // Card de Estatísticas
         const StatCard = ({ title, value, icon, color, subtitle }) => (
             <div className={`bg-white rounded-lg p-6 card-hover shadow-md border-l-4 ${color}`}>
                 <div className="flex items-center justify-between">
@@ -66,7 +69,6 @@
             </div>
         );
 
-        // Modal Genérico
         const Modal = ({ isOpen, onClose, title, children }) => {
             if (!isOpen) return null;
             return (
@@ -96,10 +98,17 @@
             
             // Estados de Modal
             const [showProductModal, setShowProductModal] = useState(false);
+            const [showEditProductModal, setShowEditProductModal] = useState(false);
             const [showSaleModal, setShowSaleModal] = useState(false);
             const [showCustomerModal, setShowCustomerModal] = useState(false);
+            const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
             const [showCreditModal, setShowCreditModal] = useState(false);
-            const [showImportModal, setShowImportModal] = useState(false);
+            const [showDeleteModal, setShowDeleteModal] = useState(false);
+            
+            // Estados para Edição/Exclusão
+            const [editingProduct, setEditingProduct] = useState(null);
+            const [editingCustomer, setEditingCustomer] = useState(null);
+            const [deleteItem, setDeleteItem] = useState(null);
             
             // Formulários
             const [productForm, setProductForm] = useState({
@@ -152,191 +161,173 @@
                 localStorage.setItem('boticario_config', JSON.stringify({ lowStockThreshold, expiryAlertDays }));
             }, [products, purchases, sales, customers, creditSales, lowStockThreshold, expiryAlertDays]);
 
-            // ==================== CÁLCULOS DE PREÇO MÉDIO ====================
+            // ==================== CÁLCULOS ====================
             const calculateAveragePrice = (productId) => {
                 const productPurchases = purchases.filter(p => p.productId === productId);
                 if (productPurchases.length === 0) return 0;
-                
                 const totalValue = productPurchases.reduce((sum, p) => sum + (p.price * p.quantity), 0);
                 const totalQuantity = productPurchases.reduce((sum, p) => sum + parseInt(p.quantity), 0);
-                
                 return totalQuantity > 0 ? totalValue / totalQuantity : 0;
             };
 
             const calculateStock = (productId) => {
-                const totalIn = purchases
-                    .filter(p => p.productId === productId)
-                    .reduce((sum, p) => sum + parseInt(p.quantity), 0);
-                
-                const totalOut = sales
-                    .filter(s => s.productId === productId)
-                    .reduce((sum, s) => sum + parseInt(s.quantity), 0);
-                
+                const totalIn = purchases.filter(p => p.productId === productId).reduce((sum, p) => sum + parseInt(p.quantity), 0);
+                const totalOut = sales.filter(s => s.productId === productId).reduce((sum, s) => sum + parseInt(s.quantity), 0);
                 return totalIn - totalOut;
             };
 
             // ==================== ALERTAS ====================
-            const lowStockProducts = useMemo(() => {
-                return products.filter(p => calculateStock(p.id) < lowStockThreshold);
-            }, [products, purchases, sales, lowStockThreshold]);
+            const lowStockProducts = useMemo(() => products.filter(p => calculateStock(p.id) < lowStockThreshold), [products, purchases, sales, lowStockThreshold]);
+            const expiryAlertProducts = useMemo(() => products.filter(p => p.expiryDate && calculateDaysUntilExpiry(p.expiryDate) <= expiryAlertDays), [products, expiryAlertDays]);
+            const pendingCreditSales = useMemo(() => creditSales.filter(c => c.status === 'pendente'), [creditSales]);
 
-            const expiryAlertProducts = useMemo(() => {
-                return products.filter(p => {
-                    if (!p.expiryDate) return false;
-                    return calculateDaysUntilExpiry(p.expiryDate) <= expiryAlertDays;
-                });
-            }, [products, expiryAlertDays]);
-
-            const pendingCreditSales = useMemo(() => {
-                return creditSales.filter(c => c.status === 'pendente');
-            }, [creditSales]);
-
-            // ==================== RELATÓRIOS FINANCEIROS ====================
+            // ==================== RELATÓRIOS ====================
             const financialReport = useMemo(() => {
                 const { start, end } = getMonthRange();
-                
-                const monthlySales = sales.filter(s => {
-                    const saleDate = new Date(s.date);
-                    return saleDate >= start && saleDate <= end;
-                });
-
-                const monthlyPurchases = purchases.filter(p => {
-                    const purchaseDate = new Date(p.date);
-                    return purchaseDate >= start && purchaseDate <= end;
-                });
-
+                const monthlySales = sales.filter(s => new Date(s.date) >= start && new Date(s.date) <= end);
+                const monthlyPurchases = purchases.filter(p => new Date(p.date) >= start && new Date(p.date) <= end);
                 const totalSold = monthlySales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
                 const totalInvested = monthlyPurchases.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-                
-                const totalProfit = monthlySales.reduce((sum, s) => {
-                    const avgPrice = calculateAveragePrice(s.productId);
-                    return sum + ((s.price - avgPrice) * s.quantity);
-                }, 0);
-
-                const topProducts = products.map(p => ({
-                    ...p,
-                    sold: sales.filter(s => s.productId === p.id).reduce((sum, s) => sum + parseInt(s.quantity), 0)
-                })).sort((a, b) => b.sold - a.sold).slice(0, 5);
-
+                const totalProfit = monthlySales.reduce((sum, s) => sum + ((s.price - calculateAveragePrice(s.productId)) * s.quantity), 0);
+                const topProducts = products.map(p => ({ ...p, sold: sales.filter(s => s.productId === p.id).reduce((sum, s) => sum + parseInt(s.quantity), 0) })).sort((a, b) => b.sold - a.sold).slice(0, 5);
                 return { totalSold, totalInvested, totalProfit, topProducts, monthlySales, monthlyPurchases };
             }, [sales, purchases, products]);
 
-            // ==================== HANDLERS ====================
+            // ==================== PRODUTOS ====================
             const handleAddProduct = () => {
-                if (!productForm.name) {
-                    alert('Nome do produto é obrigatório!');
-                    return;
-                }
-                const newProduct = {
-                    id: generateId(),
-                    ...productForm,
-                    createdAt: new Date().toISOString()
-                };
+                if (!productForm.name) { alert('Nome do produto é obrigatório!'); return; }
+                const newProduct = { id: generateId(), ...productForm, createdAt: new Date().toISOString() };
                 setProducts([...products, newProduct]);
                 setProductForm({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '' });
                 setShowProductModal(false);
             };
 
-            const handleAddPurchase = () => {
-                if (!purchaseForm.productId || purchaseForm.quantity <= 0) {
-                    alert('Produto e quantidade válidos são obrigatórios!');
-                    return;
-                }
-                const newPurchase = {
-                    id: generateId(),
-                    ...purchaseForm,
-                    quantity: parseInt(purchaseForm.quantity),
-                    price: parseFloat(purchaseForm.price)
-                };
-                setPurchases([...purchases, newPurchase]);
-                setPurchaseForm({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
+            const handleEditProduct = () => {
+                if (!editingProduct || !productForm.name) { alert('Nome do produto é obrigatório!'); return; }
+                const updatedProducts = products.map(p => 
+                    p.id === editingProduct.id ? { ...p, ...productForm } : p
+                );
+                setProducts(updatedProducts);
+                setEditingProduct(null);
+                setProductForm({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '' });
+                setShowEditProductModal(false);
             };
 
-            const handleAddSale = () => {
-                if (!saleForm.productId || saleForm.quantity <= 0) {
-                    alert('Produto e quantidade válidos são obrigatórios!');
-                    return;
-                }
-                
-                const stock = calculateStock(saleForm.productId);
-                if (stock < saleForm.quantity) {
-                    alert(`Estoque insuficiente! Disponível: ${stock}`);
-                    return;
-                }
-
-                const newSale = {
-                    id: generateId(),
-                    ...saleForm,
-                    quantity: parseInt(saleForm.quantity),
-                    price: parseFloat(saleForm.price),
-                    profit: (parseFloat(saleForm.price) - calculateAveragePrice(saleForm.productId)) * parseInt(saleForm.quantity)
-                };
-                setSales([...sales, newSale]);
-                
-                if (saleForm.paymentMethod === 'credito') {
-                    setCreditForm({
-                        saleId: newSale.id,
-                        amount: newSale.price * newSale.quantity,
-                        dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0],
-                        status: 'pendente'
-                    });
-                    setShowCreditModal(true);
-                }
-                
-                setSaleForm({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'pix', date: new Date().toISOString().split('T')[0] });
-                setShowSaleModal(false);
+            const openEditProduct = (product) => {
+                setEditingProduct(product);
+                setProductForm({
+                    name: product.name,
+                    category: product.category,
+                    fragrance: product.fragrance || '',
+                    expiryDate: product.expiryDate || '',
+                    cycle: product.cycle || ''
+                });
+                setShowEditProductModal(true);
             };
 
+            const handleDeleteProduct = () => {
+                if (!deleteItem) return;
+                setProducts(products.filter(p => p.id !== deleteItem.id));
+                setDeleteItem(null);
+                setShowDeleteModal(false);
+            };
+
+            const confirmDeleteProduct = (product) => {
+                const salesCount = sales.filter(s => s.productId === product.id).length;
+                if (salesCount > 0) {
+                    if (!confirm(`Este produto tem ${salesCount} venda(s) registrada(s). Excluir pode afetar os relatórios. Deseja continuar?`)) {
+                        return;
+                    }
+                }
+                setDeleteItem({ type: 'product', ...product });
+                setShowDeleteModal(true);
+            };
+
+            // ==================== CLIENTES ====================
             const handleAddCustomer = () => {
-                if (!customerForm.name) {
-                    alert('Nome do cliente é obrigatório!');
-                    return;
-                }
-                const newCustomer = {
-                    id: generateId(),
-                    ...customerForm,
-                    createdAt: new Date().toISOString()
-                };
+                if (!customerForm.name) { alert('Nome do cliente é obrigatório!'); return; }
+                const newCustomer = { id: generateId(), ...customerForm, createdAt: new Date().toISOString() };
                 setCustomers([...customers, newCustomer]);
                 setCustomerForm({ name: '', phone: '', email: '' });
                 setShowCustomerModal(false);
             };
 
-            const handleAddCredit = () => {
-                if (!creditForm.saleId || creditForm.amount <= 0) {
-                    alert('Dados inválidos!');
-                    return;
+            const handleEditCustomer = () => {
+                if (!editingCustomer || !customerForm.name) { alert('Nome do cliente é obrigatório!'); return; }
+                const updatedCustomers = customers.map(c => 
+                    c.id === editingCustomer.id ? { ...c, ...customerForm } : c
+                );
+                setCustomers(updatedCustomers);
+                setEditingCustomer(null);
+                setCustomerForm({ name: '', phone: '', email: '' });
+                setShowEditCustomerModal(false);
+            };
+
+            const openEditCustomer = (customer) => {
+                setEditingCustomer(customer);
+                setCustomerForm({
+                    name: customer.name,
+                    phone: customer.phone || '',
+                    email: customer.email || ''
+                });
+                setShowEditCustomerModal(true);
+            };
+
+            const handleDeleteCustomer = () => {
+                if (!deleteItem) return;
+                setCustomers(customers.filter(c => c.id !== deleteItem.id));
+                setDeleteItem(null);
+                setShowDeleteModal(false);
+            };
+
+            const confirmDeleteCustomer = (customer) => {
+                const salesCount = sales.filter(s => s.customerId === customer.id).length;
+                if (salesCount > 0) {
+                    if (!confirm(`Este cliente tem ${salesCount} compra(s) registrada(s). Excluir pode afetar o histórico. Deseja continuar?`)) {
+                        return;
+                    }
                 }
-                const newCredit = {
-                    id: generateId(),
-                    ...creditForm,
-                    amount: parseFloat(creditForm.amount),
-                    createdAt: new Date().toISOString()
-                };
+                setDeleteItem({ type: 'customer', ...customer });
+                setShowDeleteModal(true);
+            };
+
+            // ==================== OUTROS HANDLERS ====================
+            const handleAddPurchase = () => {
+                if (!purchaseForm.productId || purchaseForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
+                const newPurchase = { id: generateId(), ...purchaseForm, quantity: parseInt(purchaseForm.quantity), price: parseFloat(purchaseForm.price) };
+                setPurchases([...purchases, newPurchase]);
+                setPurchaseForm({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
+            };
+
+            const handleAddSale = () => {
+                if (!saleForm.productId || saleForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
+                const stock = calculateStock(saleForm.productId);
+                if (stock < saleForm.quantity) { alert(`Estoque insuficiente! Disponível: ${stock}`); return; }
+                const newSale = { id: generateId(), ...saleForm, quantity: parseInt(saleForm.quantity), price: parseFloat(saleForm.price), profit: (parseFloat(saleForm.price) - calculateAveragePrice(saleForm.productId)) * parseInt(saleForm.quantity) };
+                setSales([...sales, newSale]);
+                if (saleForm.paymentMethod === 'credito') {
+                    setCreditForm({ saleId: newSale.id, amount: newSale.price * newSale.quantity, dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], status: 'pendente' });
+                    setShowCreditModal(true);
+                }
+                setSaleForm({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'pix', date: new Date().toISOString().split('T')[0] });
+                setShowSaleModal(false);
+            };
+
+            const handleAddCredit = () => {
+                if (!creditForm.saleId || creditForm.amount <= 0) { alert('Dados inválidos!'); return; }
+                const newCredit = { id: generateId(), ...creditForm, amount: parseFloat(creditForm.amount), createdAt: new Date().toISOString() };
                 setCreditSales([...creditSales, newCredit]);
                 setCreditForm({ saleId: '', amount: 0, dueDate: '', status: 'pendente' });
                 setShowCreditModal(false);
             };
 
             const markCreditAsPaid = (creditId) => {
-                setCreditSales(creditSales.map(c => 
-                    c.id === creditId ? { ...c, status: 'pago' } : c
-                ));
+                setCreditSales(creditSales.map(c => c.id === creditId ? { ...c, status: 'pago' } : c));
             };
 
-            // ==================== EXPORTAR ====================
+            // ==================== EXPORTAR/IMPORTAR ====================
             const exportData = () => {
-                const data = {
-                    exportDate: new Date().toISOString(),
-                    version: '1.1',
-                    products,
-                    purchases,
-                    sales,
-                    customers,
-                    creditSales,
-                    config: { lowStockThreshold, expiryAlertDays }
-                };
-                
+                const data = { exportDate: new Date().toISOString(), version: '1.2', products, purchases, sales, customers, creditSales, config: { lowStockThreshold, expiryAlertDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -346,102 +337,64 @@
                 URL.revokeObjectURL(url);
             };
 
-            // ==================== IMPORTAR (NOVO!) ====================
             const handleImportFile = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
-                
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const data = JSON.parse(e.target.result);
-                        
-                        // Validar estrutura
-                        if (!data.products || !data.sales) {
-                            alert('Arquivo inválido! Não é um backup do Boticário.');
-                            return;
-                        }
-                        
-                        // Confirmar importação
-                        const confirmMsg = `
-                            DADOS ENCONTRADOS:
-                            • Produtos: ${data.products.length}
-                            • Vendas: ${data.sales?.length || 0}
-                            • Compras: ${data.purchases?.length || 0}
-                            • Clientes: ${data.customers?.length || 0}
-                            
-                            ⚠️ Isso vai SUBSTITUIR todos os dados atuais!
-                            Deseja continuar?
-                        `;
-                        
+                        if (!data.products || !data.sales) { alert('Arquivo inválido! Não é um backup do Boticário.'); return; }
+                        const confirmMsg = `DADOS ENCONTRADOS:\n• Produtos: ${data.products.length}\n• Vendas: ${data.sales?.length || 0}\n• Compras: ${data.purchases?.length || 0}\n• Clientes: ${data.customers?.length || 0}\n\n⚠️ Isso vai SUBSTITUIR todos os dados atuais! Continuar?`;
                         if (confirm(confirmMsg)) {
-                            // Importar dados
                             if (data.products) setProducts(data.products);
                             if (data.purchases) setPurchases(data.purchases);
                             if (data.sales) setSales(data.sales);
                             if (data.customers) setCustomers(data.customers);
                             if (data.creditSales) setCreditSales(data.creditSales);
-                            if (data.config) {
-                                setLowStockThreshold(data.config.lowStockThreshold || 3);
-                                setExpiryAlertDays(data.config.expiryAlertDays || 30);
-                            }
-                            
+                            if (data.config) { setLowStockThreshold(data.config.lowStockThreshold || 3); setExpiryAlertDays(data.config.expiryAlertDays || 30); }
                             alert('✅ Dados importados com sucesso!');
-                            setShowImportModal(false);
                             setActiveTab('dashboard');
                         }
-                        
-                    } catch (error) {
-                        alert('Erro ao ler arquivo! Verifique se é um JSON válido.');
-                        console.error(error);
-                    }
+                    } catch (error) { alert('Erro ao ler arquivo! Verifique se é um JSON válido.'); }
                 };
                 reader.readAsText(file);
-                
-                // Limpar input
                 event.target.value = '';
             };
 
-            const triggerImport = () => {
-                fileInputRef.current.click();
-            };
+            const triggerImport = () => { fileInputRef.current.click(); };
+
+            // ==================== STOCK DATA ====================
+            const stockData = useMemo(() => {
+                return products.map(p => ({
+                    ...p,
+                    stock: calculateStock(p.id),
+                    avgPrice: calculateAveragePrice(p.id),
+                    daysToExpiry: p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null,
+                    totalValue: calculateStock(p.id) * calculateAveragePrice(p.id)
+                })).sort((a, b) => a.stock - b.stock);
+            }, [products, purchases, sales]);
 
             // ==================== RENDER ====================
             return (
                 <div className="min-h-screen">
-                    {/* Input de arquivo invisível */}
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleImportFile}
-                        accept=".json"
-                        style={{ display: 'none' }}
-                    />
+                    <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".json" style={{ display: 'none' }} />
 
                     {/* Header */}
-                    <header className="boticario-gradient text-white p-6 shadow-lg">
+                    <header className="boticario-gradient text-white p-4 md:p-6 shadow-lg">
                         <div className="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-3">
                             <div>
-                                <h1 className="text-2xl md:text-3xl font-bold"><i className="fas fa-store mr-3"></i>Gestão Revenda O Boticário</h1>
-                                <p className="text-white/80 mt-1 text-sm">Sistema completo de controle de vendas e estoque</p>
+                                <h1 className="text-xl md:text-3xl font-bold"><i className="fas fa-store mr-3"></i>Gestão O Boticário</h1>
+                                <p className="text-white/80 mt-1 text-xs md:text-sm">Controle de vendas e estoque</p>
                             </div>
                             <div className="flex gap-2 flex-wrap">
-                                <button 
-                                    onClick={triggerImport} 
-                                    className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition text-sm"
-                                >
-                                    <i className="fas fa-upload mr-2"></i>Importar
+                                <button onClick={triggerImport} className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition text-sm">
+                                    <i className="fas fa-upload mr-2"></i><span className="hidden sm:inline">Importar</span>
                                 </button>
-                                <button 
-                                    onClick={exportData} 
-                                    className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition text-sm"
-                                >
-                                    <i className="fas fa-download mr-2"></i>Exportar
+                                <button onClick={exportData} className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition text-sm">
+                                    <i className="fas fa-download mr-2"></i><span className="hidden sm:inline">Exportar</span>
                                 </button>
-                                <button 
-                                    onClick={() => setActiveTab('config')} 
-                                    className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition"
-                                >
+                                <button onClick={() => setActiveTab('config')} className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-lg transition">
                                     <i className="fas fa-cog"></i>
                                 </button>
                             </div>
@@ -454,6 +407,7 @@
                             <div className="flex overflow-x-auto">
                                 {[
                                     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
+                                    { id: 'stock', label: 'Stock', icon: 'fa-warehouse' },
                                     { id: 'products', label: 'Produtos', icon: 'fa-box' },
                                     { id: 'sales', label: 'Vendas', icon: 'fa-shopping-cart' },
                                     { id: 'purchases', label: 'Compras', icon: 'fa-truck' },
@@ -461,15 +415,7 @@
                                     { id: 'credits', label: 'Fiado', icon: 'fa-hand-holding-usd' },
                                     { id: 'reports', label: 'Relatórios', icon: 'fa-file-invoice-dollar' }
                                 ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`px-4 md:px-6 py-4 flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
-                                            activeTab === tab.id 
-                                                ? 'border-purple-600 text-purple-600' 
-                                                : 'border-transparent text-gray-600 hover:text-purple-600'
-                                        }`}
-                                    >
+                                    <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-3 md:px-6 py-4 flex items-center gap-2 border-b-2 transition whitespace-nowrap ${activeTab === tab.id ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-600 hover:text-purple-600'}`}>
                                         <i className={`fas ${tab.icon}`}></i>
                                         <span className="hidden md:inline">{tab.label}</span>
                                     </button>
@@ -484,82 +430,34 @@
                         {activeTab === 'dashboard' && (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <StatCard 
-                                        title="Vendas do Mês" 
-                                        value={formatCurrency(financialReport.totalSold)} 
-                                        icon="fa-shopping-cart" 
-                                        color="border-green-400"
-                                    />
-                                    <StatCard 
-                                        title="Investido no Mês" 
-                                        value={formatCurrency(financialReport.totalInvested)} 
-                                        icon="fa-wallet" 
-                                        color="border-red-400"
-                                    />
-                                    <StatCard 
-                                        title="Lucro Líquido" 
-                                        value={formatCurrency(financialReport.totalProfit)} 
-                                        icon="fa-coins" 
-                                        color="border-blue-400"
-                                    />
-                                    <StatCard 
-                                        title="Fiado Pendente" 
-                                        value={formatCurrency(pendingCreditSales.reduce((sum, c) => sum + c.amount, 0))} 
-                                        icon="fa-hand-holding-usd" 
-                                        color="border-yellow-400"
-                                    />
+                                    <StatCard title="Vendas do Mês" value={formatCurrency(financialReport.totalSold)} icon="fa-shopping-cart" color="border-green-400" />
+                                    <StatCard title="Investido no Mês" value={formatCurrency(financialReport.totalInvested)} icon="fa-wallet" color="border-red-400" />
+                                    <StatCard title="Lucro Líquido" value={formatCurrency(financialReport.totalProfit)} icon="fa-coins" color="border-blue-400" />
+                                    <StatCard title="Fiado Pendente" value={formatCurrency(pendingCreditSales.reduce((sum, c) => sum + c.amount, 0))} icon="fa-hand-holding-usd" color="border-yellow-400" />
                                 </div>
 
-                                {/* Alertas */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {lowStockProducts.length > 0 && (
                                         <div className="alert-red rounded-lg p-4">
-                                            <h3 className="font-bold text-red-800 mb-2">
-                                                <i className="fas fa-exclamation-triangle mr-2"></i>
-                                                Estoque Baixo ({lowStockProducts.length} produtos)
-                                            </h3>
-                                            <ul className="space-y-1">
-                                                {lowStockProducts.slice(0, 5).map(p => (
-                                                    <li key={p.id} className="text-red-700">
-                                                        • {p.name} - {calculateStock(p.id)} un.
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                            <h3 className="font-bold text-red-800 mb-2"><i className="fas fa-exclamation-triangle mr-2"></i>Estoque Baixo ({lowStockProducts.length})</h3>
+                                            <ul className="space-y-1">{lowStockProducts.slice(0, 5).map(p => <li key={p.id} className="text-red-700">• {p.name} - {calculateStock(p.id)} un.</li>)}</ul>
                                         </div>
                                     )}
-                                    
                                     {expiryAlertProducts.length > 0 && (
                                         <div className="alert-yellow rounded-lg p-4">
-                                            <h3 className="font-bold text-yellow-800 mb-2">
-                                                <i className="fas fa-clock mr-2"></i>
-                                                Validade Próxima ({expiryAlertProducts.length} produtos)
-                                            </h3>
-                                            <ul className="space-y-1">
-                                                {expiryAlertProducts.slice(0, 5).map(p => (
-                                                    <li key={p.id} className="text-yellow-700">
-                                                        • {p.name} - vence em {calculateDaysUntilExpiry(p.expiryDate)} dias
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                            <h3 className="font-bold text-yellow-800 mb-2"><i className="fas fa-clock mr-2"></i>Validade Próxima ({expiryAlertProducts.length})</h3>
+                                            <ul className="space-y-1">{expiryAlertProducts.slice(0, 5).map(p => <li key={p.id} className="text-yellow-700">• {p.name} - {calculateDaysUntilExpiry(p.expiryDate)} dias</li>)}</ul>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Top Produtos */}
                                 <div className="bg-white rounded-lg shadow-md p-6">
-                                    <h3 className="text-xl font-bold text-gray-800 mb-4">
-                                        <i className="fas fa-trophy text-yellow-500 mr-2"></i>
-                                        Top 5 Produtos Mais Vendidos
-                                    </h3>
+                                    <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-trophy text-yellow-500 mr-2"></i>Top 5 Produtos</h3>
                                     <div className="space-y-3">
                                         {financialReport.topProducts.map((p, idx) => (
                                             <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                                 <div className="flex items-center gap-3">
-                                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                                                        idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-orange-500' : 'bg-gray-300'
-                                                    }`}>
-                                                        {idx + 1}
-                                                    </span>
+                                                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : idx === 2 ? 'bg-orange-500' : 'bg-gray-300'}`}>{idx + 1}</span>
                                                     <span className="font-medium">{p.name}</span>
                                                 </div>
                                                 <span className="text-purple-600 font-bold">{p.sold} un.</span>
@@ -570,21 +468,106 @@
                             </div>
                         )}
 
+                        {/* STOCK - NOVA ABA */}
+                        {activeTab === 'stock' && (
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                    <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-warehouse mr-2"></i>Controle de Stock</h2>
+                                    <div className="flex gap-2">
+                                        <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow">
+                                            <i className="fas fa-box mr-2"></i>{products.length} produtos
+                                        </span>
+                                        <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow">
+                                            <i className="fas fa-exclamation-triangle mr-2 text-red-500"></i>{lowStockProducts.length} críticos
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Resumo do Stock */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
+                                        <p className="text-green-100 text-sm">Valor Total em Stock</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(stockData.reduce((sum, p) => sum + p.totalValue, 0))}</p>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4">
+                                        <p className="text-blue-100 text-sm">Total de Unidades</p>
+                                        <p className="text-2xl font-bold">{stockData.reduce((sum, p) => sum + p.stock, 0)} un.</p>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4">
+                                        <p className="text-red-100 text-sm">Produtos sem Stock</p>
+                                        <p className="text-2xl font-bold">{stockData.filter(p => p.stock === 0).length}</p>
+                                    </div>
+                                </div>
+
+                                {/* Tabela de Stock */}
+                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+                                    <table className="w-full min-w-[800px]">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="p-4 text-left">Produto</th>
+                                                <th className="p-4 text-left">Categoria</th>
+                                                <th className="p-4 text-center">Stock Atual</th>
+                                                <th className="p-4 text-center">Status</th>
+                                                <th className="p-4 text-left">Preço Médio</th>
+                                                <th className="p-4 text-left">Valor em Stock</th>
+                                                <th className="p-4 text-left">Validade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stockData.map(p => (
+                                                <tr key={p.id} className={`border-t ${p.stock < lowStockThreshold ? 'bg-red-50' : p.stock < lowStockThreshold * 2 ? 'bg-yellow-50' : ''}`}>
+                                                    <td className="p-4 font-medium">{p.name}</td>
+                                                    <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
+                                                    <td className="p-4 text-center">
+                                                        <span className={`font-bold text-lg ${p.stock === 0 ? 'text-red-600' : p.stock < lowStockThreshold ? 'text-orange-600' : 'text-green-600'}`}>
+                                                            {p.stock}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        {p.stock === 0 ? (
+                                                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">SEM STOCK</span>
+                                                        ) : p.stock < lowStockThreshold ? (
+                                                            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-bold">BAIXO</span>
+                                                        ) : (
+                                                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">OK</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4">{formatCurrency(p.avgPrice)}</td>
+                                                    <td className="p-4 font-medium">{formatCurrency(p.totalValue)}</td>
+                                                    <td className="p-4">
+                                                        {p.expiryDate ? (
+                                                            <span className={p.daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : 'text-gray-600'}>
+                                                                {formatDate(p.expiryDate)}
+                                                                {p.daysToExpiry <= expiryAlertDays && <span className="block text-xs">({p.daysToExpiry} dias)</span>}
+                                                            </span>
+                                                        ) : '-'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {stockData.length === 0 && (
+                                        <div className="p-8 text-center text-gray-500">
+                                            <i className="fas fa-warehouse text-4xl mb-3"></i>
+                                            <p>Nenhum produto em stock</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* PRODUTOS */}
                         {activeTab === 'products' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Cadastro de Produtos</h2>
-                                    <button 
-                                        onClick={() => setShowProductModal(true)}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"
-                                    >
+                                    <button onClick={() => setShowProductModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
                                         <i className="fas fa-plus mr-2"></i>Novo Produto
                                     </button>
                                 </div>
 
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[800px]">
+                                    <table className="w-full min-w-[900px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Produto</th>
@@ -592,8 +575,9 @@
                                                 <th className="p-4 text-left">Fragrância</th>
                                                 <th className="p-4 text-left">Ciclo</th>
                                                 <th className="p-4 text-left">Validade</th>
-                                                <th className="p-4 text-left">Estoque</th>
+                                                <th className="p-4 text-center">Stock</th>
                                                 <th className="p-4 text-left">Preço Médio</th>
+                                                <th className="p-4 text-center">Ações</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -601,34 +585,25 @@
                                                 const stock = calculateStock(p.id);
                                                 const avgPrice = calculateAveragePrice(p.id);
                                                 const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
-                                                
                                                 return (
-                                                    <tr key={p.id} className={`border-t ${
-                                                        stock < lowStockThreshold ? 'bg-red-50' : 
-                                                        daysToExpiry && daysToExpiry <= expiryAlertDays ? 'bg-yellow-50' : ''
-                                                    }`}>
+                                                    <tr key={p.id} className={`border-t ${stock < lowStockThreshold ? 'bg-red-50' : daysToExpiry && daysToExpiry <= expiryAlertDays ? 'bg-yellow-50' : ''}`}>
                                                         <td className="p-4 font-medium">{p.name}</td>
-                                                        <td className="p-4">
-                                                            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">
-                                                                {p.category}
-                                                            </span>
-                                                        </td>
+                                                        <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
                                                         <td className="p-4">{p.fragrance || '-'}</td>
                                                         <td className="p-4">{p.cycle || '-'}</td>
-                                                        <td className="p-4">
-                                                            {p.expiryDate ? (
-                                                                <span className={daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : ''}>
-                                                                    {formatDate(p.expiryDate)}
-                                                                    {daysToExpiry <= expiryAlertDays && ` (${daysToExpiry} dias)`}
-                                                                </span>
-                                                            ) : '-'}
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <span className={`font-bold ${stock < lowStockThreshold ? 'text-red-600' : 'text-green-600'}`}>
-                                                                {stock} un.
-                                                            </span>
-                                                        </td>
+                                                        <td className="p-4">{p.expiryDate ? <span className={daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : ''}>{formatDate(p.expiryDate)}{daysToExpiry <= expiryAlertDays && ` (${daysToExpiry}d)`}</span> : '-'}</td>
+                                                        <td className="p-4 text-center"><span className={`font-bold ${stock < lowStockThreshold ? 'text-red-600' : 'text-green-600'}`}>{stock} un.</span></td>
                                                         <td className="p-4 font-medium">{formatCurrency(avgPrice)}</td>
+                                                        <td className="p-4 text-center">
+                                                            <div className="flex justify-center gap-2">
+                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm" title="Editar">
+                                                                    <i className="fas fa-edit"></i>
+                                                                </button>
+                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm" title="Excluir">
+                                                                    <i className="fas fa-trash"></i>
+                                                                </button>
+                                                            </div>
+                                                        </td>
                                                     </tr>
                                                 );
                                             })}
@@ -649,10 +624,7 @@
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Registro de Vendas</h2>
-                                    <button 
-                                        onClick={() => setShowSaleModal(true)}
-                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm"
-                                    >
+                                    <button onClick={() => setShowSaleModal(true)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm">
                                         <i className="fas fa-plus mr-2"></i>Nova Venda
                                     </button>
                                 </div>
@@ -664,7 +636,7 @@
                                                 <th className="p-4 text-left">Data</th>
                                                 <th className="p-4 text-left">Produto</th>
                                                 <th className="p-4 text-left">Cliente</th>
-                                                <th className="p-4 text-left">Qtd</th>
+                                                <th className="p-4 text-center">Qtd</th>
                                                 <th className="p-4 text-left">Preço Unit.</th>
                                                 <th className="p-4 text-left">Total</th>
                                                 <th className="p-4 text-left">Lucro</th>
@@ -680,19 +652,11 @@
                                                         <td className="p-4">{formatDate(s.date)}</td>
                                                         <td className="p-4 font-medium">{product?.name || 'Produto removido'}</td>
                                                         <td className="p-4">{customer?.name || 'Não informado'}</td>
-                                                        <td className="p-4">{s.quantity}</td>
+                                                        <td className="p-4 text-center">{s.quantity}</td>
                                                         <td className="p-4">{formatCurrency(s.price)}</td>
                                                         <td className="p-4 font-bold">{formatCurrency(s.price * s.quantity)}</td>
-                                                        <td className="p-4">
-                                                            <span className={s.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                                                {formatCurrency(s.profit)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                                                                {s.paymentMethod}
-                                                            </span>
-                                                        </td>
+                                                        <td className="p-4"><span className={s.profit >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrency(s.profit)}</span></td>
+                                                        <td className="p-4"><span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">{s.paymentMethod}</span></td>
                                                     </tr>
                                                 );
                                             })}
@@ -718,52 +682,21 @@
                                 <div className="bg-white rounded-lg shadow-md p-4">
                                     <h3 className="text-lg font-bold mb-4">Registrar Entrada de Mercadoria</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-                                        <select 
-                                            value={purchaseForm.productId}
-                                            onChange={(e) => setPurchaseForm({...purchaseForm, productId: e.target.value})}
-                                            className="border rounded-lg p-3 text-sm"
-                                        >
+                                        <select value={purchaseForm.productId} onChange={(e) => setPurchaseForm({...purchaseForm, productId: e.target.value})} className="border rounded-lg p-3 text-sm">
                                             <option value="">Selecione o Produto</option>
-                                            {products.map(p => (
-                                                <option key={p.id} value={p.id}>{p.name}</option>
-                                            ))}
+                                            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
-                                        <input 
-                                            type="number" 
-                                            placeholder="Quantidade"
-                                            value={purchaseForm.quantity}
-                                            onChange={(e) => setPurchaseForm({...purchaseForm, quantity: e.target.value})}
-                                            className="border rounded-lg p-3 text-sm"
-                                        />
-                                        <input 
-                                            type="number" 
-                                            placeholder="Preço Unitário (R$)"
-                                            value={purchaseForm.price}
-                                            onChange={(e) => setPurchaseForm({...purchaseForm, price: e.target.value})}
-                                            className="border rounded-lg p-3 text-sm"
-                                        />
-                                        <input 
-                                            type="date"
-                                            value={purchaseForm.date}
-                                            onChange={(e) => setPurchaseForm({...purchaseForm, date: e.target.value})}
-                                            className="border rounded-lg p-3 text-sm"
-                                        />
+                                        <input type="number" placeholder="Quantidade" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({...purchaseForm, quantity: e.target.value})} className="border rounded-lg p-3 text-sm" />
+                                        <input type="number" placeholder="Preço Unitário (R$)" value={purchaseForm.price} onChange={(e) => setPurchaseForm({...purchaseForm, price: e.target.value})} className="border rounded-lg p-3 text-sm" />
+                                        <input type="date" value={purchaseForm.date} onChange={(e) => setPurchaseForm({...purchaseForm, date: e.target.value})} className="border rounded-lg p-3 text-sm" />
                                     </div>
-                                    <button 
-                                        onClick={handleAddPurchase}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm"
-                                    >
+                                    <button onClick={handleAddPurchase} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm">
                                         <i className="fas fa-save mr-2"></i>Registrar Compra
                                     </button>
-
                                     {purchaseForm.productId && (
                                         <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                                            <p className="text-sm text-blue-800">
-                                                <strong>Preço Médio Atual:</strong> {formatCurrency(calculateAveragePrice(purchaseForm.productId))}
-                                            </p>
-                                            <p className="text-sm text-blue-800">
-                                                <strong>Estoque Atual:</strong> {calculateStock(purchaseForm.productId)} un.
-                                            </p>
+                                            <p className="text-sm text-blue-800"><strong>Preço Médio Atual:</strong> {formatCurrency(calculateAveragePrice(purchaseForm.productId))}</p>
+                                            <p className="text-sm text-blue-800"><strong>Estoque Atual:</strong> {calculateStock(purchaseForm.productId)} un.</p>
                                         </div>
                                     )}
                                 </div>
@@ -774,7 +707,7 @@
                                             <tr>
                                                 <th className="p-4 text-left">Data</th>
                                                 <th className="p-4 text-left">Produto</th>
-                                                <th className="p-4 text-left">Quantidade</th>
+                                                <th className="p-4 text-center">Quantidade</th>
                                                 <th className="p-4 text-left">Preço Unit.</th>
                                                 <th className="p-4 text-left">Total</th>
                                             </tr>
@@ -786,7 +719,7 @@
                                                     <tr key={p.id} className="border-t">
                                                         <td className="p-4">{formatDate(p.date)}</td>
                                                         <td className="p-4 font-medium">{product?.name || 'Produto removido'}</td>
-                                                        <td className="p-4">{p.quantity}</td>
+                                                        <td className="p-4 text-center">{p.quantity}</td>
                                                         <td className="p-4">{formatCurrency(p.price)}</td>
                                                         <td className="p-4 font-bold">{formatCurrency(p.price * p.quantity)}</td>
                                                     </tr>
@@ -803,10 +736,7 @@
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Gestão de Clientes (CRM)</h2>
-                                    <button 
-                                        onClick={() => setShowCustomerModal(true)}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"
-                                    >
+                                    <button onClick={() => setShowCustomerModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
                                         <i className="fas fa-user-plus mr-2"></i>Novo Cliente
                                     </button>
                                 </div>
@@ -815,16 +745,25 @@
                                     {customers.map(c => {
                                         const customerSales = sales.filter(s => s.customerId === c.id);
                                         const totalSpent = customerSales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
-                                        
                                         return (
                                             <div key={c.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
-                                                <div className="flex items-center gap-3 mb-3">
-                                                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                                                        <i className="fas fa-user text-purple-600"></i>
+                                                <div className="flex items-start justify-between mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                                            <i className="fas fa-user text-purple-600"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold">{c.name}</h3>
+                                                            <p className="text-gray-500 text-sm">{c.phone || 'Sem telefone'}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-bold">{c.name}</h3>
-                                                        <p className="text-gray-500 text-sm">{c.phone || 'Sem telefone'}</p>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => openEditCustomer(c)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar">
+                                                            <i className="fas fa-edit"></i>
+                                                        </button>
+                                                        <button onClick={() => confirmDeleteCustomer(c)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir">
+                                                            <i className="fas fa-trash"></i>
+                                                        </button>
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1 text-sm">
@@ -850,27 +789,20 @@
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Controle de Fiado</h2>
-                                    <button 
-                                        onClick={() => setShowCreditModal(true)}
-                                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition text-sm"
-                                    >
+                                    <button onClick={() => setShowCreditModal(true)} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition text-sm">
                                         <i className="fas fa-plus mr-2"></i>Novo Registro
                                     </button>
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {/* Pendentes */}
                                     <div className="bg-white rounded-lg shadow-md p-4">
-                                        <h3 className="text-lg font-bold text-red-600 mb-3">
-                                            <i className="fas fa-clock mr-2"></i>Pendentes
-                                        </h3>
+                                        <h3 className="text-lg font-bold text-red-600 mb-3"><i className="fas fa-clock mr-2"></i>Pendentes</h3>
                                         <div className="space-y-2">
                                             {pendingCreditSales.map(c => {
                                                 const sale = sales.find(s => s.id === c.saleId);
                                                 const product = products.find(p => p.id === sale?.productId);
                                                 const customer = sale ? customers.find(cust => cust.id === sale.customerId) : null;
                                                 const isOverdue = new Date(c.dueDate) < new Date();
-                                                
                                                 return (
                                                     <div key={c.id} className={`p-3 rounded-lg border-l-4 ${isOverdue ? 'alert-red' : 'alert-yellow'}`}>
                                                         <div className="flex justify-between items-start">
@@ -881,33 +813,22 @@
                                                             </div>
                                                             <div className="text-right">
                                                                 <p className="font-bold">{formatCurrency(c.amount)}</p>
-                                                                <button 
-                                                                    onClick={() => markCreditAsPaid(c.id)}
-                                                                    className="mt-1 text-xs bg-green-600 text-white px-2 py-1 rounded"
-                                                                >
-                                                                    <i className="fas fa-check mr-1"></i>Pago
-                                                                </button>
+                                                                <button onClick={() => markCreditAsPaid(c.id)} className="mt-1 text-xs bg-green-600 text-white px-2 py-1 rounded"><i className="fas fa-check mr-1"></i>Pago</button>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
-                                            {pendingCreditSales.length === 0 && (
-                                                <p className="text-gray-500 text-center py-4 text-sm">Nenhuma venda pendente</p>
-                                            )}
+                                            {pendingCreditSales.length === 0 && <p className="text-gray-500 text-center py-4 text-sm">Nenhuma venda pendente</p>}
                                         </div>
                                     </div>
 
-                                    {/* Pagos */}
                                     <div className="bg-white rounded-lg shadow-md p-4">
-                                        <h3 className="text-lg font-bold text-green-600 mb-3">
-                                            <i className="fas fa-check-circle mr-2"></i>Pagos
-                                        </h3>
+                                        <h3 className="text-lg font-bold text-green-600 mb-3"><i className="fas fa-check-circle mr-2"></i>Pagos</h3>
                                         <div className="space-y-2">
                                             {creditSales.filter(c => c.status === 'pago').map(c => {
                                                 const sale = sales.find(s => s.id === c.saleId);
                                                 const customer = sale ? customers.find(cust => cust.id === sale.customerId) : null;
-                                                
                                                 return (
                                                     <div key={c.id} className="p-3 rounded-lg border-l-4 alert-green">
                                                         <div className="flex justify-between">
@@ -920,9 +841,7 @@
                                                     </div>
                                                 );
                                             })}
-                                            {creditSales.filter(c => c.status === 'pago').length === 0 && (
-                                                <p className="text-gray-500 text-center py-4 text-sm">Nenhum pagamento registrado</p>
-                                            )}
+                                            {creditSales.filter(c => c.status === 'pago').length === 0 && <p className="text-gray-500 text-center py-4 text-sm">Nenhum pagamento registrado</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -933,7 +852,6 @@
                         {activeTab === 'reports' && (
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gray-800">Relatórios Financeiros</h2>
-                                
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
                                         <p className="text-green-100 text-sm">Total Vendido (Mês)</p>
@@ -955,41 +873,18 @@
                         {activeTab === 'config' && (
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gray-800">Configurações</h2>
-                                
                                 <div className="bg-white rounded-lg shadow-md p-4 max-w-md">
                                     <div className="space-y-3">
                                         <div>
-                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
-                                                Limite de Estoque Baixo (unidades)
-                                            </label>
-                                            <input 
-                                                type="number" 
-                                                value={lowStockThreshold}
-                                                onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 3)}
-                                                className="w-full border rounded-lg p-3 text-sm"
-                                            />
+                                            <label className="block text-gray-700 font-medium mb-2 text-sm">Limite de Estoque Baixo (unidades)</label>
+                                            <input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 3)} className="w-full border rounded-lg p-3 text-sm" />
                                         </div>
                                         <div>
-                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
-                                                Alerta de Validade (dias)
-                                            </label>
-                                            <input 
-                                                type="number" 
-                                                value={expiryAlertDays}
-                                                onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 30)}
-                                                className="w-full border rounded-lg p-3 text-sm"
-                                            />
+                                            <label className="block text-gray-700 font-medium mb-2 text-sm">Alerta de Validade (dias)</label>
+                                            <input type="number" value={expiryAlertDays} onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 30)} className="w-full border rounded-lg p-3 text-sm" />
                                         </div>
                                         <div className="pt-3 border-t">
-                                            <button 
-                                                onClick={() => {
-                                                    if (confirm('Tem certeza? Isso apagará todos os dados!')) {
-                                                        localStorage.clear();
-                                                        window.location.reload();
-                                                    }
-                                                }}
-                                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition w-full text-sm"
-                                            >
+                                            <button onClick={() => { if (confirm('Tem certeza? Isso apagará todos os dados!')) { localStorage.clear(); window.location.reload(); } }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition w-full text-sm">
                                                 <i className="fas fa-trash mr-2"></i>Limpar Todos os Dados
                                             </button>
                                         </div>
@@ -1000,26 +895,17 @@
                     </main>
 
                     {/* MODALS */}
+                    {/* Modal Novo Produto */}
                     <Modal isOpen={showProductModal} onClose={() => setShowProductModal(false)} title="Novo Produto">
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Nome do Produto *</label>
-                                <input 
-                                    type="text" 
-                                    value={productForm.name}
-                                    onChange={(e) => setProductForm({...productForm, name: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                    placeholder="Ex: Lily Eau de Parfum"
-                                />
+                                <input type="text" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Lily Eau de Parfum" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-2">Categoria</label>
-                                    <select 
-                                        value={productForm.category}
-                                        onChange={(e) => setProductForm({...productForm, category: e.target.value})}
-                                        className="w-full border rounded-lg p-3"
-                                    >
+                                    <select value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full border rounded-lg p-3">
                                         <option value="perfumaria">Perfumaria</option>
                                         <option value="corpo">Corpo e Banho</option>
                                         <option value="maquiagem">Maquiagem</option>
@@ -1029,102 +915,86 @@
                                 </div>
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-2">Ciclo O Boticário</label>
-                                    <input 
-                                        type="text" 
-                                        value={productForm.cycle}
-                                        onChange={(e) => setProductForm({...productForm, cycle: e.target.value})}
-                                        className="w-full border rounded-lg p-3"
-                                        placeholder="Ex: Ciclo 12/2024"
-                                    />
+                                    <input type="text" value={productForm.cycle} onChange={(e) => setProductForm({...productForm, cycle: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Ciclo 12/2024" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Fragrância</label>
-                                <input 
-                                    type="text" 
-                                    value={productForm.fragrance}
-                                    onChange={(e) => setProductForm({...productForm, fragrance: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                    placeholder="Ex: Floral, Amadeirado..."
-                                />
+                                <input type="text" value={productForm.fragrance} onChange={(e) => setProductForm({...productForm, fragrance: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Floral, Amadeirado..." />
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Data de Validade</label>
-                                <input 
-                                    type="date" 
-                                    value={productForm.expiryDate}
-                                    onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                />
+                                <input type="date" value={productForm.expiryDate} onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button 
-                                onClick={handleAddProduct}
-                                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"
-                            >
-                                <i className="fas fa-save mr-2"></i>Salvar Produto
-                            </button>
+                            <button onClick={handleAddProduct} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Produto</button>
                         </div>
                     </Modal>
 
+                    {/* Modal Editar Produto */}
+                    <Modal isOpen={showEditProductModal} onClose={() => { setShowEditProductModal(false); setEditingProduct(null); }} title="Editar Produto">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Nome do Produto *</label>
+                                <input type="text" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Categoria</label>
+                                    <select value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full border rounded-lg p-3">
+                                        <option value="perfumaria">Perfumaria</option>
+                                        <option value="corpo">Corpo e Banho</option>
+                                        <option value="maquiagem">Maquiagem</option>
+                                        <option value="cabelo">Cabelo</option>
+                                        <option value="acessorios">Acessórios</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Ciclo O Boticário</label>
+                                    <input type="text" value={productForm.cycle} onChange={(e) => setProductForm({...productForm, cycle: e.target.value})} className="w-full border rounded-lg p-3" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Fragrância</label>
+                                <input type="text" value={productForm.fragrance} onChange={(e) => setProductForm({...productForm, fragrance: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Data de Validade</label>
+                                <input type="date" value={productForm.expiryDate} onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleEditProduct} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Produto</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Nova Venda */}
                     <Modal isOpen={showSaleModal} onClose={() => setShowSaleModal(false)} title="Nova Venda">
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Produto *</label>
-                                <select 
-                                    value={saleForm.productId}
-                                    onChange={(e) => setSaleForm({...saleForm, productId: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                >
+                                <select value={saleForm.productId} onChange={(e) => setSaleForm({...saleForm, productId: e.target.value})} className="w-full border rounded-lg p-3">
                                     <option value="">Selecione o Produto</option>
-                                    {products.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name} (Estoque: {calculateStock(p.id)})
-                                        </option>
-                                    ))}
+                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} (Estoque: {calculateStock(p.id)})</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Cliente</label>
-                                <select 
-                                    value={saleForm.customerId}
-                                    onChange={(e) => setSaleForm({...saleForm, customerId: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                >
+                                <select value={saleForm.customerId} onChange={(e) => setSaleForm({...saleForm, customerId: e.target.value})} className="w-full border rounded-lg p-3">
                                     <option value="">Não informado</option>
-                                    {customers.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
+                                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input 
-                                        type="number" 
-                                        value={saleForm.quantity}
-                                        onChange={(e) => setSaleForm({...saleForm, quantity: e.target.value})}
-                                        className="w-full border rounded-lg p-3"
-                                        min="1"
-                                    />
+                                    <input type="number" value={saleForm.quantity} onChange={(e) => setSaleForm({...saleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
                                 </div>
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-2">Preço de Venda (R$) *</label>
-                                    <input 
-                                        type="number" 
-                                        value={saleForm.price}
-                                        onChange={(e) => setSaleForm({...saleForm, price: e.target.value})}
-                                        className="w-full border rounded-lg p-3"
-                                        step="0.01"
-                                    />
+                                    <input type="number" value={saleForm.price} onChange={(e) => setSaleForm({...saleForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Método de Pagamento</label>
-                                <select 
-                                    value={saleForm.paymentMethod}
-                                    onChange={(e) => setSaleForm({...saleForm, paymentMethod: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                >
+                                <select value={saleForm.paymentMethod} onChange={(e) => setSaleForm({...saleForm, paymentMethod: e.target.value})} className="w-full border rounded-lg p-3">
                                     <option value="pix">PIX</option>
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="cartao">Cartão</option>
@@ -1133,114 +1003,99 @@
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
-                                <input 
-                                    type="date" 
-                                    value={saleForm.date}
-                                    onChange={(e) => setSaleForm({...saleForm, date: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                />
+                                <input type="date" value={saleForm.date} onChange={(e) => setSaleForm({...saleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
                             {saleForm.productId && saleForm.price && (
                                 <div className="p-4 bg-green-50 rounded-lg">
-                                    <p className="text-sm">
-                                        <strong>Preço Médio:</strong> {formatCurrency(calculateAveragePrice(saleForm.productId))}
-                                    </p>
-                                    <p className="text-sm">
-                                        <strong>Lucro Estimado:</strong> 
-                                        <span className={((saleForm.price - calculateAveragePrice(saleForm.productId)) * saleForm.quantity) >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                            {' '}{formatCurrency((saleForm.price - calculateAveragePrice(saleForm.productId)) * saleForm.quantity)}
-                                        </span>
-                                    </p>
+                                    <p className="text-sm"><strong>Preço Médio:</strong> {formatCurrency(calculateAveragePrice(saleForm.productId))}</p>
+                                    <p className="text-sm"><strong>Lucro Estimado:</strong> <span className={((saleForm.price - calculateAveragePrice(saleForm.productId)) * saleForm.quantity) >= 0 ? 'text-green-600' : 'text-red-600'}> {formatCurrency((saleForm.price - calculateAveragePrice(saleForm.productId)) * saleForm.quantity)}</span></p>
                                 </div>
                             )}
-                            <button 
-                                onClick={handleAddSale}
-                                className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"
-                            >
-                                <i className="fas fa-check mr-2"></i>Registrar Venda
-                            </button>
+                            <button onClick={handleAddSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
                         </div>
                     </Modal>
 
+                    {/* Modal Novo Cliente */}
                     <Modal isOpen={showCustomerModal} onClose={() => setShowCustomerModal(false)} title="Novo Cliente">
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Nome *</label>
-                                <input 
-                                    type="text" 
-                                    value={customerForm.name}
-                                    onChange={(e) => setCustomerForm({...customerForm, name: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                />
+                                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({...customerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                <input 
-                                    type="tel" 
-                                    value={customerForm.phone}
-                                    onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                    placeholder="(00) 00000-0000"
-                                />
+                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="(00) 00000-0000" />
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input 
-                                    type="email" 
-                                    value={customerForm.email}
-                                    onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                />
+                                <input type="email" value={customerForm.email} onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button 
-                                onClick={handleAddCustomer}
-                                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"
-                            >
-                                <i className="fas fa-save mr-2"></i>Salvar Cliente
-                            </button>
+                            <button onClick={handleAddCustomer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Cliente</button>
                         </div>
                     </Modal>
 
+                    {/* Modal Editar Cliente */}
+                    <Modal isOpen={showEditCustomerModal} onClose={() => { setShowEditCustomerModal(false); setEditingCustomer(null); }} title="Editar Cliente">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Nome *</label>
+                                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({...customerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Telefone</label>
+                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="(00) 00000-0000" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Email</label>
+                                <input type="email" value={customerForm.email} onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleEditCustomer} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Cliente</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Fiado */}
                     <Modal isOpen={showCreditModal} onClose={() => setShowCreditModal(false)} title="Registro de Fiado">
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Valor (R$) *</label>
-                                <input 
-                                    type="number" 
-                                    value={creditForm.amount}
-                                    onChange={(e) => setCreditForm({...creditForm, amount: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                    step="0.01"
-                                />
+                                <input type="number" value={creditForm.amount} onChange={(e) => setCreditForm({...creditForm, amount: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Data de Vencimento *</label>
-                                <input 
-                                    type="date" 
-                                    value={creditForm.dueDate}
-                                    onChange={(e) => setCreditForm({...creditForm, dueDate: e.target.value})}
-                                    className="w-full border rounded-lg p-3"
-                                />
+                                <input type="date" value={creditForm.dueDate} onChange={(e) => setCreditForm({...creditForm, dueDate: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button 
-                                onClick={handleAddCredit}
-                                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg transition"
-                            >
-                                <i className="fas fa-save mr-2"></i>Registrar Fiado
-                            </button>
+                            <button onClick={handleAddCredit} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Registrar Fiado</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Confirmar Exclusão */}
+                    <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setDeleteItem(null); }} title="Confirmar Exclusão">
+                        <div className="space-y-4">
+                            <div className="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
+                                <p className="text-red-800 font-bold"><i className="fas fa-exclamation-triangle mr-2"></i>Atenção!</p>
+                                <p className="text-red-700 mt-2">
+                                    {deleteItem?.type === 'product' 
+                                        ? `Tem certeza que deseja excluir o produto "${deleteItem?.name}"?` 
+                                        : `Tem certeza que deseja excluir o cliente "${deleteItem?.name}"?`}
+                                </p>
+                                <p className="text-red-600 text-sm mt-2">Esta ação não pode ser desfeita!</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => { setShowDeleteModal(false); setDeleteItem(null); }} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg transition">
+                                    <i className="fas fa-times mr-2"></i>Cancelar
+                                </button>
+                                <button onClick={deleteItem?.type === 'product' ? handleDeleteProduct : handleDeleteCustomer} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg transition">
+                                    <i className="fas fa-trash mr-2"></i>Excluir
+                                </button>
+                            </div>
                         </div>
                     </Modal>
 
                     {/* Footer */}
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
-                            <p className="text-gray-400">
-                                <i className="fas fa-store mr-2"></i>
-                                Sistema de Gestão para Revenda O Boticário
-                            </p>
-                            <p className="text-gray-500 text-sm mt-2">
-                                Dados armazenados localmente • Use Exportar/Importar para backup • {new Date().getFullYear()}
-                            </p>
+                            <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
+                            <p className="text-gray-500 text-sm mt-2">Dados armazenados localmente • Use Exportar/Importar para backup • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
