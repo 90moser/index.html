@@ -24,23 +24,18 @@
         .btn-delete:hover { background-color: #dc2626; }
         .btn-transfer { background-color: #8b5cf6; }
         .btn-transfer:hover { background-color: #7c3aed; }
+        .btn-buy { background-color: #059669; }
+        .btn-buy:hover { background-color: #047857; }
         
-        /* Dropdown Pesquisável */
         .searchable-dropdown { position: relative; }
-        .dropdown-options { 
-            max-height: 200px; 
-            overflow-y: auto; 
-            position: absolute;
-            z-index: 50;
-            width: 100%;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        .dropdown-options { max-height: 200px; overflow-y: auto; position: absolute; z-index: 50; width: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .dropdown-option { padding: 0.5rem 1rem; cursor: pointer; transition: background-color 0.2s; }
         .dropdown-option:hover { background-color: #f3f4f6; }
         .dropdown-option.selected { background-color: #667eea; color: white; }
+        
+        .filter-bar { background: linear-gradient(to right, #f8fafc, #f1f5f9); }
+        .filter-input { transition: all 0.2s; }
+        .filter-input:focus { ring: 2px; ring-color: #667eea; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -78,7 +73,6 @@
             const [searchTerm, setSearchTerm] = useState('');
             const dropdownRef = useRef(null);
             const selectedOption = options.find(o => o.value === value);
-
             const sortedOptions = useMemo(() => [...options].sort((a, b) => a.label.localeCompare(b.label)), [options]);
             const filteredOptions = useMemo(() => {
                 if (!searchTerm) return sortedOptions;
@@ -107,8 +101,7 @@
                             <div className="p-2 border-b sticky top-0 bg-white">
                                 <div className="relative">
                                     <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                                    <input type="text" className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        placeholder="🔍 Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onClick={(e) => e.stopPropagation()} />
+                                    <input type="text" className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="🔍 Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} onClick={(e) => e.stopPropagation()} />
                                 </div>
                             </div>
                             <div className="overflow-y-auto">
@@ -120,6 +113,105 @@
                             </div>
                         </div>
                     )}
+                </div>
+            );
+        };
+
+        // ==================== COMPONENTE: BARRA DE FILTROS ====================
+        const FilterBar = ({ 
+            searchTerm, 
+            onSearchChange, 
+            categoryFilter, 
+            onCategoryChange, 
+            statusFilter, 
+            onStatusChange,
+            sortBy,
+            onSortChange,
+            expiryFilter,
+            onExpiryChange,
+            totalItems,
+            filteredItems,
+            onExport
+        }) => {
+            const categories = ['todos', 'perfumaria', 'corpo', 'maquiagem', 'cabelo', 'acessorios'];
+            const statusOptions = [
+                { value: 'todos', label: 'Todos Status', icon: 'fa-list' },
+                { value: 'ok', label: 'Stock OK', icon: 'fa-check-circle', color: 'text-green-600' },
+                { value: 'low', label: 'Stock Baixo', icon: 'fa-exclamation-triangle', color: 'text-orange-600' },
+                { value: 'out', label: 'Sem Stock', icon: 'fa-times-circle', color: 'text-red-600' }
+            ];
+            const sortOptions = [
+                { value: 'name', label: 'Nome (A-Z)', icon: 'fa-sort-alpha-down' },
+                { value: 'name-desc', label: 'Nome (Z-A)', icon: 'fa-sort-alpha-up' },
+                { value: 'stock', label: 'Stock (Menor)', icon: 'fa-sort-numeric-down' },
+                { value: 'stock-desc', label: 'Stock (Maior)', icon: 'fa-sort-numeric-up' },
+                { value: 'value', label: 'Valor (Maior)', icon: 'fa-euro-sign' },
+                { value: 'expiry', label: 'Validade (Próxima)', icon: 'fa-clock' }
+            ];
+            const expiryOptions = [
+                { value: 'all', label: 'Todas Validades' },
+                { value: '30', label: 'Vence em 30 dias' },
+                { value: '60', label: 'Vence em 60 dias' },
+                { value: '90', label: 'Vence em 90 dias' },
+                { value: 'no-expiry', label: 'Sem Validade' }
+            ];
+
+            return (
+                <div className="filter-bar rounded-lg p-4 mb-4 shadow-sm">
+                    <div className="flex flex-wrap gap-3 items-center">
+                        {/* Busca */}
+                        <div className="flex-1 min-w-[200px]">
+                            <div className="relative">
+                                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                <input 
+                                    type="text" 
+                                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    placeholder="🔍 Buscar produto por nome..."
+                                    value={searchTerm}
+                                    onChange={(e) => onSearchChange(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Categoria */}
+                        <select value={categoryFilter} onChange={(e) => onCategoryChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            {categories.map(cat => (
+                                <option key={cat} value={cat}>{cat === 'todos' ? '📋 Todas Categorias' : cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                            ))}
+                        </select>
+
+                        {/* Status */}
+                        <select value={statusFilter} onChange={(e) => onStatusChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            {statusOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+
+                        {/* Validade */}
+                        <select value={expiryFilter} onChange={(e) => onExpiryChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            {expiryOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+
+                        {/* Ordenar */}
+                        <select value={sortBy} onChange={(e) => onSortChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            {sortOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}><i className={`fas ${opt.icon} mr-1`}></i>{opt.label}</option>
+                            ))}
+                        </select>
+
+                        {/* Exportar */}
+                        <button onClick={onExport} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg transition" title="Exportar CSV">
+                            <i className="fas fa-file-csv"></i>
+                        </button>
+
+                        {/* Contador */}
+                        <div className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow-sm">
+                            <i className="fas fa-box mr-2 text-purple-600"></i>
+                            <span className="font-bold">{filteredItems}</span> de {totalItems} produtos
+                        </div>
+                    </div>
                 </div>
             );
         };
@@ -184,6 +276,7 @@
             const [showTransferModal, setShowTransferModal] = useState(false);
             const [showResellerSaleModal, setShowResellerSaleModal] = useState(false);
             const [showReturnModal, setShowReturnModal] = useState(false);
+            const [showQuickBuyModal, setShowQuickBuyModal] = useState(false);
             
             // Estados para Edição/Exclusão
             const [editingProduct, setEditingProduct] = useState(null);
@@ -192,11 +285,25 @@
             const [editingReseller, setEditingReseller] = useState(null);
             const [deleteItem, setDeleteItem] = useState(null);
             const [selectedReseller, setSelectedReseller] = useState(null);
+            const [quickBuyProduct, setQuickBuyProduct] = useState(null);
             
             // Filtros
             const [customerSort, setCustomerSort] = useState('default');
             const [resellerFilter, setResellerFilter] = useState('all');
             
+            // Filtros de Stock e Produtos
+            const [productSearchTerm, setProductSearchTerm] = useState('');
+            const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
+            const [productStatusFilter, setProductStatusFilter] = useState('todos');
+            const [productExpiryFilter, setProductExpiryFilter] = useState('all');
+            const [productSortBy, setProductSortBy] = useState('name');
+            
+            const [stockSearchTerm, setStockSearchTerm] = useState('');
+            const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
+            const [stockStatusFilter, setStockStatusFilter] = useState('todos');
+            const [stockExpiryFilter, setStockExpiryFilter] = useState('all');
+            const [stockSortBy, setStockSortBy] = useState('name');
+
             // Formulários
             const [productForm, setProductForm] = useState({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
             const [purchaseForm, setPurchaseForm] = useState({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
@@ -207,6 +314,7 @@
             const [transferForm, setTransferForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
             const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
             const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
 
             // Configurações
             const [lowStockThreshold, setLowStockThreshold] = useState(3);
@@ -278,6 +386,67 @@
                 return totalIn - totalSold - totalReturned;
             };
 
+            // ==================== FILTROS DE PRODUTOS ====================
+            const filterAndSortProducts = (productsList, searchTerm, categoryFilter, statusFilter, expiryFilter, sortBy) => {
+                let filtered = productsList.filter(p => {
+                    const stock = calculateStock(p.id);
+                    const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
+                    
+                    // Busca por nome
+                    if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+                    
+                    // Categoria
+                    if (categoryFilter !== 'todos' && p.category !== categoryFilter) return false;
+                    
+                    // Status
+                    if (statusFilter === 'ok' && stock >= lowStockThreshold) return true;
+                    if (statusFilter === 'low' && stock > 0 && stock < lowStockThreshold) return true;
+                    if (statusFilter === 'out' && stock === 0) return true;
+                    if (statusFilter !== 'todos' && statusFilter !== 'ok' && statusFilter !== 'low' && statusFilter !== 'out') return false;
+                    if (statusFilter === 'todos') return true;
+                    
+                    // Validade
+                    if (expiryFilter === 'no-expiry' && !p.expiryDate) return true;
+                    if (expiryFilter === 'no-expiry' && p.expiryDate) return false;
+                    if (expiryFilter !== 'all' && expiryFilter !== 'no-expiry' && daysToExpiry !== null && daysToExpiry <= parseInt(expiryFilter)) return true;
+                    if (expiryFilter !== 'all' && expiryFilter !== 'no-expiry' && (daysToExpiry === null || daysToExpiry > parseInt(expiryFilter))) return false;
+                    
+                    return true;
+                });
+
+                // Ordenação
+                filtered.sort((a, b) => {
+                    const stockA = calculateStock(a.id);
+                    const stockB = calculateStock(b.id);
+                    const valueA = stockA * (parseFloat(a.catalogPrice) || 0);
+                    const valueB = stockB * (parseFloat(b.catalogPrice) || 0);
+                    const expiryA = a.expiryDate ? calculateDaysUntilExpiry(a.expiryDate) : 9999;
+                    const expiryB = b.expiryDate ? calculateDaysUntilExpiry(b.expiryDate) : 9999;
+                    
+                    switch(sortBy) {
+                        case 'name': return a.name.localeCompare(b.name);
+                        case 'name-desc': return b.name.localeCompare(a.name);
+                        case 'stock': return stockA - stockB;
+                        case 'stock-desc': return stockB - stockA;
+                        case 'value': return valueB - valueA;
+                        case 'expiry': return expiryA - expiryB;
+                        default: return 0;
+                    }
+                });
+
+                return filtered;
+            };
+
+            const filteredProducts = useMemo(() => 
+                filterAndSortProducts(products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy),
+                [products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy]
+            );
+
+            const filteredStock = useMemo(() => 
+                filterAndSortProducts(products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy),
+                [products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy]
+            );
+
             // ==================== ALERTAS ====================
             const lowStockProducts = useMemo(() => products.filter(p => calculateStock(p.id) < lowStockThreshold), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, lowStockThreshold]);
             const expiryAlertProducts = useMemo(() => products.filter(p => p.expiryDate && calculateDaysUntilExpiry(p.expiryDate) <= expiryAlertDays), [products, expiryAlertDays]);
@@ -303,26 +472,17 @@
                 return { totalSold, totalInvested, totalProfit, topProducts, monthlySales, monthlyPurchases };
             }, [sales, purchases, products]);
 
-            // Relatório de Revendedores
             const resellerReport = useMemo(() => {
                 return resellers.map(r => {
-                    const sales = resellerSales.filter(s => s.resellerId === r.id);
-                    const totalSales = sales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0);
+                    const resellerSalesList = resellerSales.filter(s => s.resellerId === r.id);
+                    const totalSales = resellerSalesList.reduce((sum, s) => sum + s.totalSale, 0);
                     const commission = totalSales * (r.commissionRate / 100);
                     const yourEarnings = totalSales - commission;
-                    const products = resellerStock.filter(t => t.resellerId === r.id && calculateResellerStock(r.id, t.productId) > 0);
-                    return {
-                        ...r,
-                        totalSales,
-                        commission,
-                        yourEarnings,
-                        productsCount: products.length,
-                        salesCount: sales.length
-                    };
+                    const resellerProducts = resellerStock.filter(t => t.resellerId === r.id && calculateResellerStock(r.id, t.productId) > 0);
+                    return { ...r, totalSales, commission, yourEarnings, productsCount: resellerProducts.length, salesCount: resellerSalesList.length };
                 });
             }, [resellers, resellerSales, resellerStock]);
 
-            // Valor do Estoque
             const stockValueReport = useMemo(() => {
                 let totalPaidValue = 0;
                 let totalSaleValue = 0;
@@ -337,7 +497,6 @@
                 return { totalPaidValue, totalSaleValue, potentialProfit: totalSaleValue - totalPaidValue, profitMargin: totalPaidValue > 0 ? ((totalSaleValue - totalPaidValue) / totalPaidValue) * 100 : 0 };
             }, [products, purchases, sales, resellerStock, resellerSales, resellerReturns]);
 
-            // Clientes com Stats
             const customersWithStats = useMemo(() => {
                 return customers.map(c => {
                     const customerSales = sales.filter(s => s.customerId === c.id);
@@ -346,7 +505,7 @@
                 });
             }, [customers, sales]);
 
-            // ==================== PRODUTOS ====================
+            // ==================== HANDLERS ====================
             const handleAddProduct = () => {
                 if (!productForm.name) { alert('Nome do produto é obrigatório!'); return; }
                 const newProduct = { id: generateId(), ...productForm, catalogPrice: parseFloat(productForm.catalogPrice) || 0, createdAt: new Date().toISOString() };
@@ -373,12 +532,11 @@
             const handleDeleteProduct = () => { if (!deleteItem) return; setProducts(products.filter(p => p.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
             const confirmDeleteProduct = (product) => {
                 const salesCount = sales.filter(s => s.productId === product.id).length;
-                if (salesCount > 0 && !confirm(`Este produto tem ${salesCount} venda(s) registrada(s). Excluir pode afetar os relatórios. Deseja continuar?`)) return;
+                if (salesCount > 0 && !confirm(`Este produto tem ${salesCount} venda(s). Deseja continuar?`)) return;
                 setDeleteItem({ type: 'product', ...product });
                 setShowDeleteModal(true);
             };
 
-            // ==================== CLIENTES ====================
             const handleAddCustomer = () => {
                 if (!customerForm.name) { alert('Nome do cliente é obrigatório!'); return; }
                 const newCustomer = { id: generateId(), ...customerForm, createdAt: new Date().toISOString() };
@@ -405,12 +563,11 @@
             const handleDeleteCustomer = () => { if (!deleteItem) return; setCustomers(customers.filter(c => c.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
             const confirmDeleteCustomer = (customer) => {
                 const salesCount = sales.filter(s => s.customerId === customer.id).length;
-                if (salesCount > 0 && !confirm(`Este cliente tem ${salesCount} compra(s) registrada(s). Deseja continuar?`)) return;
+                if (salesCount > 0 && !confirm(`Este cliente tem ${salesCount} compra(s). Deseja continuar?`)) return;
                 setDeleteItem({ type: 'customer', ...customer });
                 setShowDeleteModal(true);
             };
 
-            // ==================== REVENDEDORES ====================
             const handleAddReseller = () => {
                 if (!resellerForm.name || !resellerForm.salonName) { alert('Nome e Salão são obrigatórios!'); return; }
                 const newReseller = { id: generateId(), ...resellerForm, commissionRate: parseFloat(resellerForm.commissionRate) || 25, createdAt: new Date().toISOString(), status: 'ativo' };
@@ -434,24 +591,14 @@
                 setShowEditResellerModal(true);
             };
 
-            const handleDeleteReseller = () => {
-                if (!deleteItem) return;
-                setResellers(resellers.filter(r => r.id !== deleteItem.id));
-                setDeleteItem(null);
-                setShowDeleteModal(false);
-            };
-
+            const handleDeleteReseller = () => { if (!deleteItem) return; setResellers(resellers.filter(r => r.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
             const confirmDeleteReseller = (reseller) => {
                 const stockCount = resellerStock.filter(t => t.resellerId === reseller.id && calculateResellerStock(reseller.id, t.productId) > 0).length;
-                if (stockCount > 0) {
-                    alert(`Este revendedor tem ${stockCount} produto(s) em stock. Devolva os produtos antes de excluir!`);
-                    return;
-                }
+                if (stockCount > 0) { alert(`Este revendedor tem ${stockCount} produto(s). Devolva antes de excluir!`); return; }
                 setDeleteItem({ type: 'reseller', ...reseller });
                 setShowDeleteModal(true);
             };
 
-            // ==================== TRANSFERÊNCIA PARA REVENDEDOR ====================
             const handleTransfer = () => {
                 if (!transferForm.resellerId || !transferForm.productId || transferForm.quantity <= 0) { alert('Dados inválidos!'); return; }
                 const stock = calculateStock(transferForm.productId);
@@ -462,35 +609,20 @@
                 setShowTransferModal(false);
             };
 
-            // ==================== VENDA DO REVENDEDOR ====================
             const handleResellerSale = () => {
                 if (!resellerSaleForm.resellerId || !resellerSaleForm.productId || resellerSaleForm.quantity <= 0) { alert('Dados inválidos!'); return; }
                 const resellerStockQty = calculateResellerStock(resellerSaleForm.resellerId, resellerSaleForm.productId);
-                if (resellerStockQty < resellerSaleForm.quantity) { alert(`Estoque insuficiente neste revendedor! Disponível: ${resellerStockQty}`); return; }
-                
+                if (resellerStockQty < resellerSaleForm.quantity) { alert(`Estoque insuficiente! Disponível: ${resellerStockQty}`); return; }
                 const reseller = resellers.find(r => r.id === resellerSaleForm.resellerId);
-                const product = products.find(p => p.id === resellerSaleForm.productId);
                 const salePrice = parseFloat(resellerSaleForm.salePrice);
                 const totalSale = salePrice * parseInt(resellerSaleForm.quantity);
                 const commission = totalSale * (reseller.commissionRate / 100);
-                const yourEarnings = totalSale - commission;
-                
-                const newSale = {
-                    id: generateId(),
-                    ...resellerSaleForm,
-                    quantity: parseInt(resellerSaleForm.quantity),
-                    salePrice,
-                    totalSale,
-                    commission,
-                    yourEarnings,
-                    date: resellerSaleForm.date || new Date().toISOString().split('T')[0]
-                };
+                const newSale = { id: generateId(), ...resellerSaleForm, quantity: parseInt(resellerSaleForm.quantity), salePrice, totalSale, commission, yourEarnings: totalSale - commission, date: resellerSaleForm.date || new Date().toISOString().split('T')[0] };
                 setResellerSales([...resellerSales, newSale]);
                 setResellerSaleForm({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
                 setShowResellerSaleModal(false);
             };
 
-            // ==================== DEVOLUÇÃO DE PRODUTOS ====================
             const handleReturn = () => {
                 if (!returnForm.resellerId || !returnForm.productId || returnForm.quantity <= 0) { alert('Dados inválidos!'); return; }
                 const resellerStockQty = calculateResellerStock(returnForm.resellerId, returnForm.productId);
@@ -501,7 +633,6 @@
                 setShowReturnModal(false);
             };
 
-            // ==================== VENDAS ====================
             const handleAddSale = () => {
                 if (!saleForm.productId || saleForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
                 const stock = calculateStock(saleForm.productId);
@@ -541,7 +672,6 @@
             const handleDeleteSale = () => { if (!deleteItem) return; setSales(sales.filter(s => s.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
             const confirmDeleteSale = (sale) => { setDeleteItem({ type: 'sale', ...sale }); setShowDeleteModal(true); };
 
-            // ==================== OUTROS HANDLERS ====================
             const handleAddPurchase = () => {
                 if (!purchaseForm.productId || purchaseForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
                 const newPurchase = { id: generateId(), ...purchaseForm, quantity: parseInt(purchaseForm.quantity), price: parseFloat(purchaseForm.price) };
@@ -559,20 +689,48 @@
 
             const markCreditAsPaid = (creditId) => { setCreditSales(creditSales.map(c => c.id === creditId ? { ...c, status: 'pago' } : c)); };
 
-            // ==================== EXPORTAR/IMPORTAR ====================
+            // ==================== EXPORTAR ====================
             const exportData = () => {
-                const data = {
-                    exportDate: new Date().toISOString(),
-                    version: '2.0',
-                    products, purchases, sales, customers, creditSales,
-                    resellers, resellerStock, resellerSales, resellerReturns,
-                    config: { lowStockThreshold, expiryAlertDays, staleProductDays }
-                };
+                const data = { exportDate: new Date().toISOString(), version: '2.1', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `backup_boticario_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            // NOVO: Exportar lista de produtos para CSV
+            const exportProductsCSV = (productsList, filename) => {
+                const headers = ['Nome', 'Categoria', 'Preço Catálogo', 'Stock', 'Preço Custo', 'Valor Stock', 'Validade', 'Status'];
+                const rows = productsList.map(p => {
+                    const stock = calculateStock(p.id);
+                    const avgPrice = calculateAveragePrice(p.id);
+                    const value = stock * (parseFloat(p.catalogPrice) || 0);
+                    const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
+                    let status = 'OK';
+                    if (stock === 0) status = 'Sem Stock';
+                    else if (stock < lowStockThreshold) status = 'Baixo';
+                    
+                    return [
+                        p.name,
+                        p.category,
+                        parseFloat(p.catalogPrice) || 0,
+                        stock,
+                        avgPrice,
+                        value,
+                        p.expiryDate ? formatDate(p.expiryDate) : 'N/A',
+                        status
+                    ].map(cell => `"${cell}"`).join(',');
+                });
+                
+                const csv = [headers.join(','), ...rows].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
                 a.click();
                 URL.revokeObjectURL(url);
             };
@@ -607,13 +765,33 @@
 
             const triggerImport = () => { fileInputRef.current.click(); };
 
-            // ==================== STOCK DATA ====================
             const stockData = useMemo(() => products.map(p => ({ ...p, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id), daysToExpiry: p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns]);
-
-            // ==================== OPÇÕES PARA DROPDOWNS ====================
             const productOptions = useMemo(() => products.map(p => ({ value: p.id, label: p.name, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id) })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns]);
             const customerOptions = useMemo(() => customers.map(c => ({ value: c.id, label: c.name, phone: c.phone || '' })), [customers]);
             const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
+
+            // NOVO: Abrir modal de compra rápida
+            const openQuickBuy = (product) => {
+                setQuickBuyProduct(product);
+                setQuickBuyForm({ quantity: 5, price: calculateAveragePrice(product.id), date: new Date().toISOString().split('T')[0] });
+                setShowQuickBuyModal(true);
+            };
+
+            const handleQuickBuy = () => {
+                if (!quickBuyProduct || quickBuyForm.quantity <= 0 || quickBuyForm.price <= 0) { alert('Dados inválidos!'); return; }
+                const newPurchase = { 
+                    id: generateId(), 
+                    productId: quickBuyProduct.id, 
+                    quantity: parseInt(quickBuyForm.quantity), 
+                    price: parseFloat(quickBuyForm.price),
+                    date: quickBuyForm.date || new Date().toISOString().split('T')[0]
+                };
+                setPurchases([...purchases, newPurchase]);
+                setQuickBuyProduct(null);
+                setQuickBuyForm({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
+                setShowQuickBuyModal(false);
+                alert('✅ Compra registrada com sucesso!');
+            };
 
             // ==================== RENDER ====================
             return (
@@ -677,7 +855,6 @@
                                     <StatCard title="Revendedores Ativos" value={resellers.filter(r => r.status === 'ativo').length} icon="fa-handshake" color="border-purple-400" />
                                 </div>
 
-                                {/* Cards de Revendedores */}
                                 {resellers.length > 0 && (
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <StatCard title="💰 Vendas Revendedores (Mês)" value={formatCurrency(resellerSales.filter(s => new Date(s.date) >= getMonthRange().start).reduce((sum, s) => sum + s.totalSale, 0))} icon="fa-store" color="border-green-400" />
@@ -692,7 +869,6 @@
                                     <StatCard title="🎯 Lucro Potencial" value={formatCurrency(stockValueReport.potentialProfit)} icon="fa-chart-line" color={stockValueReport.potentialProfit >= 0 ? "border-green-400" : "border-red-400"} smallText={`Margem: ${stockValueReport.profitMargin.toFixed(1)}%`} />
                                 </div>
 
-                                {/* Alertas */}
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                     {lowStockProducts.length > 0 && (
                                         <div className="alert-red rounded-lg p-4">
@@ -714,7 +890,6 @@
                                     )}
                                 </div>
 
-                                {/* Top Revendedores */}
                                 {resellers.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-md p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-trophy text-yellow-500 mr-2"></i>Top Revendedores</h3>
@@ -740,7 +915,191 @@
                             </div>
                         )}
 
-                        {/* REVENDEDORES - NOVA ABA */}
+                        {/* STOCK - COM FILTROS AVANÇADOS */}
+                        {activeTab === 'stock' && (
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                    <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-warehouse mr-2"></i>Controle de Stock</h2>
+                                    <div className="flex gap-2">
+                                        <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow"><i className="fas fa-box mr-2"></i>{products.length} produtos</span>
+                                        <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow"><i className="fas fa-exclamation-triangle mr-2 text-red-500"></i>{lowStockProducts.length} críticos</span>
+                                    </div>
+                                </div>
+
+                                {/* BARRA DE FILTROS */}
+                                <FilterBar 
+                                    searchTerm={stockSearchTerm}
+                                    onSearchChange={setStockSearchTerm}
+                                    categoryFilter={stockCategoryFilter}
+                                    onCategoryChange={setStockCategoryFilter}
+                                    statusFilter={stockStatusFilter}
+                                    onStatusChange={setStockStatusFilter}
+                                    sortBy={stockSortBy}
+                                    onSortChange={setStockSortBy}
+                                    expiryFilter={stockExpiryFilter}
+                                    onExpiryChange={setStockExpiryFilter}
+                                    totalItems={products.length}
+                                    filteredItems={filteredStock.length}
+                                    onExport={() => exportProductsCSV(filteredStock, `stock_boticario_${new Date().toISOString().split('T')[0]}.csv`)}
+                                />
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
+                                        <p className="text-purple-100 text-sm">Valor Pago em Stock</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(stockValueReport.totalPaidValue)}</p>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
+                                        <p className="text-green-100 text-sm">Valor Venda em Stock</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(stockValueReport.totalSaleValue)}</p>
+                                    </div>
+                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4">
+                                        <p className="text-blue-100 text-sm">Lucro Potencial</p>
+                                        <p className="text-2xl font-bold">{formatCurrency(stockValueReport.potentialProfit)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+                                    <table className="w-full min-w-[900px]">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="p-4 text-left">Produto</th>
+                                                <th className="p-4 text-left">Categoria</th>
+                                                <th className="p-4 text-center">Stock</th>
+                                                <th className="p-4 text-center">Status</th>
+                                                <th className="p-4 text-left">Preço Pago</th>
+                                                <th className="p-4 text-left">Preço Catálogo</th>
+                                                <th className="p-4 text-left">Valor Stock</th>
+                                                <th className="p-4 text-left">Validade</th>
+                                                <th className="p-4 text-center">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredStock.map(p => {
+                                                const stock = calculateStock(p.id);
+                                                const avgPrice = calculateAveragePrice(p.id);
+                                                const value = stock * (parseFloat(p.catalogPrice) || 0);
+                                                const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
+                                                return (
+                                                    <tr key={p.id} className={`border-t ${stock < lowStockThreshold ? 'bg-red-50' : stock < lowStockThreshold * 2 ? 'bg-yellow-50' : ''}`}>
+                                                        <td className="p-4 font-medium">{p.name}</td>
+                                                        <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
+                                                        <td className="p-4 text-center"><span className={`font-bold text-lg ${stock === 0 ? 'text-red-600' : stock < lowStockThreshold ? 'text-orange-600' : 'text-green-600'}`}>{stock}</span></td>
+                                                        <td className="p-4 text-center">
+                                                            {stock === 0 ? <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">SEM STOCK</span> : stock < lowStockThreshold ? <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-bold">BAIXO</span> : <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">OK</span>}
+                                                        </td>
+                                                        <td className="p-4">{formatCurrency(avgPrice)}</td>
+                                                        <td className="p-4">{formatCurrency(parseFloat(p.catalogPrice) || 0)}</td>
+                                                        <td className="p-4 font-medium">{formatCurrency(value)}</td>
+                                                        <td className="p-4">{p.expiryDate ? <span className={daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : 'text-gray-600'}>{formatDate(p.expiryDate)}{daysToExpiry && daysToExpiry <= expiryAlertDays && <span className="block text-xs">({daysToExpiry} dias)</span>}</span> : '-'}</td>
+                                                        <td className="p-4 text-center">
+                                                            <div className="flex justify-center gap-2">
+                                                                {stock < lowStockThreshold && (
+                                                                    <button onClick={() => openQuickBuy(p)} className="btn-buy text-white px-2 py-1 rounded text-xs" title="Comprar Mais">
+                                                                        <i className="fas fa-cart-plus"></i>
+                                                                    </button>
+                                                                )}
+                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar">
+                                                                    <i className="fas fa-edit"></i>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {filteredStock.length === 0 && (
+                                        <div className="p-8 text-center text-gray-500">
+                                            <i className="fas fa-search text-4xl mb-3"></i>
+                                            <p>Nenhum produto encontrado com estes filtros</p>
+                                            <button onClick={() => { setStockSearchTerm(''); setStockCategoryFilter('todos'); setStockStatusFilter('todos'); setStockExpiryFilter('all'); setStockSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">
+                                                Limpar filtros
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PRODUTOS - COM FILTROS AVANÇADOS */}
+                        {activeTab === 'products' && (
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center flex-wrap gap-2">
+                                    <h2 className="text-2xl font-bold text-gray-800">Cadastro de Produtos</h2>
+                                    <button onClick={() => setShowProductModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
+                                        <i className="fas fa-plus mr-2"></i>Novo Produto
+                                    </button>
+                                </div>
+
+                                {/* BARRA DE FILTROS */}
+                                <FilterBar 
+                                    searchTerm={productSearchTerm}
+                                    onSearchChange={setProductSearchTerm}
+                                    categoryFilter={productCategoryFilter}
+                                    onCategoryChange={setProductCategoryFilter}
+                                    statusFilter={productStatusFilter}
+                                    onStatusChange={setProductStatusFilter}
+                                    sortBy={productSortBy}
+                                    onSortChange={setProductSortBy}
+                                    expiryFilter={productExpiryFilter}
+                                    onExpiryChange={setProductExpiryFilter}
+                                    totalItems={products.length}
+                                    filteredItems={filteredProducts.length}
+                                    onExport={() => exportProductsCSV(filteredProducts, `produtos_boticario_${new Date().toISOString().split('T')[0]}.csv`)}
+                                />
+
+                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+                                    <table className="w-full min-w-[1000px]">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="p-4 text-left">Produto</th>
+                                                <th className="p-4 text-left">Categoria</th>
+                                                <th className="p-4 text-left">Fragrância</th>
+                                                <th className="p-4 text-left">Ciclo</th>
+                                                <th className="p-4 text-left">Preço Catálogo</th>
+                                                <th className="p-4 text-left">Validade</th>
+                                                <th className="p-4 text-center">Stock</th>
+                                                <th className="p-4 text-center">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredProducts.map(p => {
+                                                const stock = calculateStock(p.id);
+                                                const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
+                                                return (
+                                                    <tr key={p.id} className={`border-t ${stock < lowStockThreshold ? 'bg-red-50' : daysToExpiry && daysToExpiry <= expiryAlertDays ? 'bg-yellow-50' : ''}`}>
+                                                        <td className="p-4 font-medium">{p.name}</td>
+                                                        <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
+                                                        <td className="p-4">{p.fragrance || '-'}</td>
+                                                        <td className="p-4">{p.cycle || '-'}</td>
+                                                        <td className="p-4 font-medium">{formatCurrency(parseFloat(p.catalogPrice) || 0)}</td>
+                                                        <td className="p-4">{p.expiryDate ? <span className={daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : ''}>{formatDate(p.expiryDate)}{daysToExpiry <= expiryAlertDays && ` (${daysToExpiry}d)`}</span> : '-'}</td>
+                                                        <td className="p-4 text-center"><span className={`font-bold ${stock < lowStockThreshold ? 'text-red-600' : 'text-green-600'}`}>{stock} un.</span></td>
+                                                        <td className="p-4 text-center">
+                                                            <div className="flex justify-center gap-2">
+                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm" title="Editar"><i className="fas fa-edit"></i></button>
+                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm" title="Excluir"><i className="fas fa-trash"></i></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {filteredProducts.length === 0 && (
+                                        <div className="p-8 text-center text-gray-500">
+                                            <i className="fas fa-search text-4xl mb-3"></i>
+                                            <p>Nenhum produto encontrado com estes filtros</p>
+                                            <button onClick={() => { setProductSearchTerm(''); setProductCategoryFilter('todos'); setProductStatusFilter('todos'); setProductExpiryFilter('all'); setProductSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">
+                                                Limpar filtros
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* REVENDEDORES */}
                         {activeTab === 'resellers' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
@@ -750,7 +1109,6 @@
                                     </button>
                                 </div>
 
-                                {/* Resumo */}
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
                                         <p className="text-purple-100 text-sm">Total Revendedores</p>
@@ -770,7 +1128,6 @@
                                     </div>
                                 </div>
 
-                                {/* Lista de Revendedores */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {resellerReport.map(r => (
                                         <div key={r.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
@@ -786,21 +1143,11 @@
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-1">
-                                                    <button onClick={() => { setSelectedReseller(r); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs" title="Transferir Stock">
-                                                        <i className="fas fa-exchange-alt"></i>
-                                                    </button>
-                                                    <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Registrar Venda">
-                                                        <i className="fas fa-shopping-cart"></i>
-                                                    </button>
-                                                    <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs" title="Devolver Produtos">
-                                                        <i className="fas fa-undo"></i>
-                                                    </button>
-                                                    <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar">
-                                                        <i className="fas fa-edit"></i>
-                                                    </button>
-                                                    <button onClick={() => confirmDeleteReseller(r)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir">
-                                                        <i className="fas fa-trash"></i>
-                                                    </button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs" title="Transferir Stock"><i className="fas fa-exchange-alt"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Registrar Venda"><i className="fas fa-shopping-cart"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs" title="Devolver Produtos"><i className="fas fa-undo"></i></button>
+                                                    <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar"><i className="fas fa-edit"></i></button>
+                                                    <button onClick={() => confirmDeleteReseller(r)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir"><i className="fas fa-trash"></i></button>
                                                 </div>
                                             </div>
                                             <div className="space-y-2 text-sm">
@@ -808,22 +1155,10 @@
                                                 <p><i className="fas fa-envelope mr-2 text-gray-400"></i>{r.email || 'Sem email'}</p>
                                                 <p><i className="fas fa-percentage mr-2 text-gray-400"></i>Comissão: {r.commissionRate}%</p>
                                                 <div className="pt-2 border-t">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-500">Vendas:</span>
-                                                        <span className="font-bold">{formatCurrency(r.totalSales)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-500">Seu ganho (75%):</span>
-                                                        <span className="font-bold text-green-600">{formatCurrency(r.yourEarnings)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-500">Comissão (25%):</span>
-                                                        <span className="font-bold text-orange-600">{formatCurrency(r.commission)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between mt-2 pt-2 border-t">
-                                                        <span className="text-gray-500">Produtos em stock:</span>
-                                                        <span className="font-bold">{r.productsCount}</span>
-                                                    </div>
+                                                    <div className="flex justify-between"><span className="text-gray-500">Vendas:</span><span className="font-bold">{formatCurrency(r.totalSales)}</span></div>
+                                                    <div className="flex justify-between"><span className="text-gray-500">Seu ganho (75%):</span><span className="font-bold text-green-600">{formatCurrency(r.yourEarnings)}</span></div>
+                                                    <div className="flex justify-between"><span className="text-gray-500">Comissão (25%):</span><span className="font-bold text-orange-600">{formatCurrency(r.commission)}</span></div>
+                                                    <div className="flex justify-between mt-2 pt-2 border-t"><span className="text-gray-500">Produtos em stock:</span><span className="font-bold">{r.productsCount}</span></div>
                                                 </div>
                                             </div>
                                         </div>
@@ -833,11 +1168,9 @@
                                     <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
                                         <i className="fas fa-handshake text-4xl mb-3"></i>
                                         <p>Nenhum revendedor cadastrado</p>
-                                        <p className="text-sm mt-2">Cadastre salões de beleza para gerenciar produtos em comodato</p>
                                     </div>
                                 )}
 
-                                {/* Stock por Revendedor */}
                                 {resellers.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-md p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-boxes mr-2"></i>Stock em Revendedores</h3>
@@ -861,138 +1194,21 @@
                                                         const days = calculateDaysSince(t.date);
                                                         return (
                                                             <tr key={t.id} className="border-t">
-                                                                <td className="p-3">
-                                                                    <p className="font-medium">{reseller?.salonName}</p>
-                                                                    <p className="text-xs text-gray-500">{reseller?.name}</p>
-                                                                </td>
+                                                                <td className="p-3"><p className="font-medium">{reseller?.salonName}</p><p className="text-xs text-gray-500">{reseller?.name}</p></td>
                                                                 <td className="p-3">{product?.name || 'Produto removido'}</td>
                                                                 <td className="p-3 text-center font-bold">{qty} un.</td>
                                                                 <td className="p-3">{formatDate(t.date)}</td>
-                                                                <td className="p-3 text-center">
-                                                                    <span className={days >= staleProductDays ? 'text-orange-600 font-bold' : 'text-gray-600'}>{days} dias</span>
-                                                                </td>
-                                                                <td className="p-3 text-center">
-                                                                    {days >= staleProductDays ? (
-                                                                        <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">Parado</span>
-                                                                    ) : (
-                                                                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Ativo</span>
-                                                                    )}
-                                                                </td>
+                                                                <td className="p-3 text-center"><span className={days >= staleProductDays ? 'text-orange-600 font-bold' : 'text-gray-600'}>{days} dias</span></td>
+                                                                <td className="p-3 text-center">{days >= staleProductDays ? <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">Parado</span> : <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Ativo</span>}</td>
                                                             </tr>
                                                         );
                                                     })}
                                                 </tbody>
                                             </table>
-                                            {resellerStock.filter(t => calculateResellerStock(t.resellerId, t.productId) > 0).length === 0 && (
-                                                <p className="text-gray-500 text-center py-4">Nenhum produto em revendedores</p>
-                                            )}
+                                            {resellerStock.filter(t => calculateResellerStock(t.resellerId, t.productId) > 0).length === 0 && <p className="text-gray-500 text-center py-4">Nenhum produto em revendedores</p>}
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                        )}
-
-                        {/* STOCK */}
-                        {activeTab === 'stock' && (
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center flex-wrap gap-2">
-                                    <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-warehouse mr-2"></i>Controle de Stock</h2>
-                                    <div className="flex gap-2">
-                                        <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow"><i className="fas fa-box mr-2"></i>{products.length} produtos</span>
-                                        <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow"><i className="fas fa-exclamation-triangle mr-2 text-red-500"></i>{lowStockProducts.length} críticos</span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
-                                        <p className="text-purple-100 text-sm">Valor Pago em Stock</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(stockValueReport.totalPaidValue)}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
-                                        <p className="text-green-100 text-sm">Valor Venda em Stock</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(stockValueReport.totalSaleValue)}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4">
-                                        <p className="text-blue-100 text-sm">Lucro Potencial</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(stockValueReport.potentialProfit)}</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[800px]">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="p-4 text-left">Produto</th>
-                                                <th className="p-4 text-left">Categoria</th>
-                                                <th className="p-4 text-center">Stock</th>
-                                                <th className="p-4 text-center">Status</th>
-                                                <th className="p-4 text-left">Preço Catálogo</th>
-                                                <th className="p-4 text-left">Validade</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {stockData.map(p => (
-                                                <tr key={p.id} className={`border-t ${p.stock < lowStockThreshold ? 'bg-red-50' : ''}`}>
-                                                    <td className="p-4 font-medium">{p.name}</td>
-                                                    <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
-                                                    <td className="p-4 text-center"><span className={`font-bold text-lg ${p.stock === 0 ? 'text-red-600' : p.stock < lowStockThreshold ? 'text-orange-600' : 'text-green-600'}`}>{p.stock}</span></td>
-                                                    <td className="p-4 text-center">
-                                                        {p.stock === 0 ? <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">SEM STOCK</span> : p.stock < lowStockThreshold ? <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-bold">BAIXO</span> : <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">OK</span>}
-                                                    </td>
-                                                    <td className="p-4">{formatCurrency(parseFloat(p.catalogPrice) || 0)}</td>
-                                                    <td className="p-4">{p.expiryDate ? <span className={p.daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : ''}>{formatDate(p.expiryDate)}{p.daysToExpiry && p.daysToExpiry <= expiryAlertDays && ` (${p.daysToExpiry}d)`}</span> : '-'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* PRODUTOS */}
-                        {activeTab === 'products' && (
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center flex-wrap gap-2">
-                                    <h2 className="text-2xl font-bold text-gray-800">Cadastro de Produtos</h2>
-                                    <button onClick={() => setShowProductModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-plus mr-2"></i>Novo Produto
-                                    </button>
-                                </div>
-
-                                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[900px]">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="p-4 text-left">Produto</th>
-                                                <th className="p-4 text-left">Categoria</th>
-                                                <th className="p-4 text-left">Preço Catálogo</th>
-                                                <th className="p-4 text-center">Stock</th>
-                                                <th className="p-4 text-left">Validade</th>
-                                                <th className="p-4 text-center">Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {products.map(p => {
-                                                const stock = calculateStock(p.id);
-                                                return (
-                                                    <tr key={p.id} className="border-t">
-                                                        <td className="p-4 font-medium">{p.name}</td>
-                                                        <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
-                                                        <td className="p-4">{formatCurrency(parseFloat(p.catalogPrice) || 0)}</td>
-                                                        <td className="p-4 text-center"><span className={`font-bold ${stock < lowStockThreshold ? 'text-red-600' : 'text-green-600'}`}>{stock} un.</span></td>
-                                                        <td className="p-4">{p.expiryDate ? formatDate(p.expiryDate) : '-'}</td>
-                                                        <td className="p-4 text-center">
-                                                            <div className="flex justify-center gap-2">
-                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm"><i className="fas fa-edit"></i></button>
-                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm"><i className="fas fa-trash"></i></button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
                             </div>
                         )}
 
@@ -1007,15 +1223,17 @@
                                 </div>
 
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[900px]">
+                                    <table className="w-full min-w-[1000px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Data</th>
                                                 <th className="p-4 text-left">Produto</th>
                                                 <th className="p-4 text-left">Cliente</th>
                                                 <th className="p-4 text-center">Qtd</th>
+                                                <th className="p-4 text-left">Preço Unit.</th>
                                                 <th className="p-4 text-left">Total</th>
                                                 <th className="p-4 text-left">Lucro</th>
+                                                <th className="p-4 text-left">Pagamento</th>
                                                 <th className="p-4 text-center">Ações</th>
                                             </tr>
                                         </thead>
@@ -1029,8 +1247,10 @@
                                                         <td className="p-4 font-medium">{product?.name || 'Produto removido'}</td>
                                                         <td className="p-4">{customer?.name || 'Não informado'}</td>
                                                         <td className="p-4 text-center">{s.quantity}</td>
+                                                        <td className="p-4">{formatCurrency(s.price)}</td>
                                                         <td className="p-4 font-bold">{formatCurrency(s.price * s.quantity)}</td>
                                                         <td className="p-4"><span className={s.profit >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrency(s.profit)}</span></td>
+                                                        <td className="p-4"><span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">{s.paymentMethod}</span></td>
                                                         <td className="p-4 text-center">
                                                             <div className="flex justify-center gap-2">
                                                                 <button onClick={() => openEditSale(s)} className="btn-edit text-white px-3 py-1 rounded text-sm"><i className="fas fa-edit"></i></button>
@@ -1042,6 +1262,7 @@
                                             })}
                                         </tbody>
                                     </table>
+                                    {sales.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-shopping-cart text-4xl mb-3"></i><p>Nenhuma venda registrada</p></div>}
                                 </div>
                             </div>
                         )}
@@ -1093,10 +1314,7 @@
                                             <div className="flex items-start justify-between mb-3">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center"><i className="fas fa-user text-purple-600"></i></div>
-                                                    <div>
-                                                        <h3 className="font-bold">{c.name}</h3>
-                                                        <p className="text-gray-500 text-sm">{c.phone || 'Sem telefone'}</p>
-                                                    </div>
+                                                    <div><h3 className="font-bold">{c.name}</h3><p className="text-gray-500 text-sm">{c.phone || 'Sem telefone'}</p></div>
                                                 </div>
                                                 <div className="flex gap-1">
                                                     <button onClick={() => openEditCustomer(c)} className="btn-edit text-white px-2 py-1 rounded text-xs"><i className="fas fa-edit"></i></button>
@@ -1132,7 +1350,6 @@
                                     </div>
                                 </div>
 
-                                {/* Relatório de Revendedores */}
                                 {resellers.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-md p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-handshake mr-2"></i>Relatório de Revendedores</h3>
@@ -1197,154 +1414,40 @@
                         )}
                     </main>
 
-                    {/* MODALS - REVENDEDORES */}
-                    {/* Novo Revendedor */}
-                    <Modal isOpen={showResellerModal} onClose={() => setShowResellerModal(false)} title="Novo Revendedor">
+                    {/* MODALS */}
+                    {/* Quick Buy Modal */}
+                    <Modal isOpen={showQuickBuyModal} onClose={() => { setShowQuickBuyModal(false); setQuickBuyProduct(null); }} title="Compra Rápida">
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Contato *</label>
-                                <input type="text" value={resellerForm.name} onChange={(e) => setResellerForm({...resellerForm, name: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Maria Silva" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Salão *</label>
-                                <input type="text" value={resellerForm.salonName} onChange={(e) => setResellerForm({...resellerForm, salonName: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Beauty Salon" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Endereço</label>
-                                <input type="text" value={resellerForm.address} onChange={(e) => setResellerForm({...resellerForm, address: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Rua das Flores, 123" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                    <input type="tel" value={resellerForm.phone} onChange={(e) => setResellerForm({...resellerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Comissão (%)</label>
-                                    <input type="number" value={resellerForm.commissionRate} onChange={(e) => setResellerForm({...resellerForm, commissionRate: e.target.value})} className="w-full border rounded-lg p-3" />
-                                    <p className="text-xs text-gray-500 mt-1">Padrão: 25%</p>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleAddReseller} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Revendedor</button>
-                        </div>
-                    </Modal>
-
-                    {/* Editar Revendedor */}
-                    <Modal isOpen={showEditResellerModal} onClose={() => { setShowEditResellerModal(false); setEditingReseller(null); }} title="Editar Revendedor">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Contato *</label>
-                                <input type="text" value={resellerForm.name} onChange={(e) => setResellerForm({...resellerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Salão *</label>
-                                <input type="text" value={resellerForm.salonName} onChange={(e) => setResellerForm({...resellerForm, salonName: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Endereço</label>
-                                <input type="text" value={resellerForm.address} onChange={(e) => setResellerForm({...resellerForm, address: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                    <input type="tel" value={resellerForm.phone} onChange={(e) => setResellerForm({...resellerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Comissão (%)</label>
-                                    <input type="number" value={resellerForm.commissionRate} onChange={(e) => setResellerForm({...resellerForm, commissionRate: e.target.value})} className="w-full border rounded-lg p-3" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleEditReseller} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Revendedor</button>
-                        </div>
-                    </Modal>
-
-                    {/* Transferir para Revendedor */}
-                    <Modal isOpen={showTransferModal} onClose={() => { setShowTransferModal(false); setSelectedReseller(null); }} title="Transferir Produtos para Revendedor">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-purple-50 rounded-lg">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
+                            {quickBuyProduct && (
+                                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                    <p className="font-bold">{quickBuyProduct.name}</p>
+                                    <p className="text-sm text-gray-600">Stock atual: {calculateStock(quickBuyProduct.id)} un. (Baixo!)</p>
                                 </div>
                             )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={transferForm.productId} onChange={(value) => setTransferForm({...transferForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                <input type="number" value={transferForm.quantity} onChange={(e) => setTransferForm({...transferForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Transferência</label>
-                                <input type="date" value={transferForm.date} onChange={(e) => setTransferForm({...transferForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleTransfer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-exchange-alt mr-2"></i>Transferir</button>
-                        </div>
-                    </Modal>
-
-                    {/* Venda do Revendedor */}
-                    <Modal isOpen={showResellerSaleModal} onClose={() => { setShowResellerSaleModal(false); setSelectedReseller(null); }} title="Registrar Venda do Revendedor">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-green-50 rounded-lg">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">Comissão: {selectedReseller.commissionRate}%</p>
-                                </div>
-                            )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={resellerSaleForm.productId} onChange={(value) => setResellerSaleForm({...resellerSaleForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input type="number" value={resellerSaleForm.quantity} onChange={(e) => setResellerSaleForm({...resellerSaleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
+                                    <input type="number" value={quickBuyForm.quantity} onChange={(e) => setQuickBuyForm({...quickBuyForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
-                                    <input type="number" value={resellerSaleForm.salePrice} onChange={(e) => setResellerSaleForm({...resellerSaleForm, salePrice: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
+                                    <label className="block text-gray-700 font-medium mb-2">Preço Unitário (€) *</label>
+                                    <input type="number" value={quickBuyForm.price} onChange={(e) => setQuickBuyForm({...quickBuyForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
-                                <input type="date" value={resellerSaleForm.date} onChange={(e) => setResellerSaleForm({...resellerSaleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
+                                <label className="block text-gray-700 font-medium mb-2">Data da Compra</label>
+                                <input type="date" value={quickBuyForm.date} onChange={(e) => setQuickBuyForm({...quickBuyForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            {resellerSaleForm.salePrice && resellerSaleForm.quantity && selectedReseller && (
-                                <div className="p-4 bg-green-50 rounded-lg space-y-2">
-                                    <p className="text-sm"><strong>Total Venda:</strong> {formatCurrency(resellerSaleForm.salePrice * resellerSaleForm.quantity)}</p>
-                                    <p className="text-sm text-orange-600"><strong>Comissão ({selectedReseller.commissionRate}%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * (selectedReseller.commissionRate / 100))}</p>
-                                    <p className="text-sm text-green-600 font-bold"><strong>Seu Ganho (75%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * ((100 - selectedReseller.commissionRate) / 100))}</p>
+                            {quickBuyForm.quantity && quickBuyForm.price && (
+                                <div className="p-4 bg-green-50 rounded-lg">
+                                    <p className="text-sm"><strong>Total:</strong> {formatCurrency(quickBuyForm.quantity * quickBuyForm.price)}</p>
                                 </div>
                             )}
-                            <button onClick={handleResellerSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
+                            <button onClick={handleQuickBuy} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-cart-plus mr-2"></i>Registrar Compra</button>
                         </div>
                     </Modal>
 
-                    {/* Devolução de Produtos */}
-                    <Modal isOpen={showReturnModal} onClose={() => { setShowReturnModal(false); setSelectedReseller(null); }} title="Devolver Produtos do Revendedor">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-orange-50 rounded-lg">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
-                                </div>
-                            )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={returnForm.productId} onChange={(value) => setReturnForm({...returnForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                <input type="number" value={returnForm.quantity} onChange={(e) => setReturnForm({...returnForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Devolução</label>
-                                <input type="date" value={returnForm.date} onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleReturn} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg transition"><i className="fas fa-undo mr-2"></i>Devolver Produtos</button>
-                        </div>
-                    </Modal>
-
-                    {/* Outros Modals (Produto, Venda, Cliente, etc.) */}
+                    {/* Outros Modals (Produto, Venda, Cliente, Revendedor, etc.) */}
                     {/* Modal Novo Produto */}
                     <Modal isOpen={showProductModal} onClose={() => setShowProductModal(false)} title="Novo Produto">
                         <div className="space-y-4">
@@ -1366,6 +1469,16 @@
                                 <div>
                                     <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (€)</label>
                                     <input type="number" value={productForm.catalogPrice} onChange={(e) => setProductForm({...productForm, catalogPrice: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: 45,90" step="0.01" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Fragrância</label>
+                                    <input type="text" value={productForm.fragrance} onChange={(e) => setProductForm({...productForm, fragrance: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Floral" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Ciclo O Boticário</label>
+                                    <input type="text" value={productForm.cycle} onChange={(e) => setProductForm({...productForm, cycle: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Ciclo 12/2024" />
                                 </div>
                             </div>
                             <div>
@@ -1514,6 +1627,151 @@
                         </div>
                     </Modal>
 
+                    {/* Modal Revendedor */}
+                    <Modal isOpen={showResellerModal} onClose={() => setShowResellerModal(false)} title="Novo Revendedor">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Nome do Contato *</label>
+                                <input type="text" value={resellerForm.name} onChange={(e) => setResellerForm({...resellerForm, name: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Maria Silva" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Nome do Salão *</label>
+                                <input type="text" value={resellerForm.salonName} onChange={(e) => setResellerForm({...resellerForm, salonName: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Beauty Salon" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Endereço</label>
+                                <input type="text" value={resellerForm.address} onChange={(e) => setResellerForm({...resellerForm, address: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Rua das Flores, 123" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Telefone</label>
+                                    <input type="tel" value={resellerForm.phone} onChange={(e) => setResellerForm({...resellerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Comissão (%)</label>
+                                    <input type="number" value={resellerForm.commissionRate} onChange={(e) => setResellerForm({...resellerForm, commissionRate: e.target.value})} className="w-full border rounded-lg p-3" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Email</label>
+                                <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleAddReseller} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Revendedor</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Editar Revendedor */}
+                    <Modal isOpen={showEditResellerModal} onClose={() => { setShowEditResellerModal(false); setEditingReseller(null); }} title="Editar Revendedor">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Nome do Contato *</label>
+                                <input type="text" value={resellerForm.name} onChange={(e) => setResellerForm({...resellerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Nome do Salão *</label>
+                                <input type="text" value={resellerForm.salonName} onChange={(e) => setResellerForm({...resellerForm, salonName: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Endereço</label>
+                                <input type="text" value={resellerForm.address} onChange={(e) => setResellerForm({...resellerForm, address: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Telefone</label>
+                                    <input type="tel" value={resellerForm.phone} onChange={(e) => setResellerForm({...resellerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Comissão (%)</label>
+                                    <input type="number" value={resellerForm.commissionRate} onChange={(e) => setResellerForm({...resellerForm, commissionRate: e.target.value})} className="w-full border rounded-lg p-3" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Email</label>
+                                <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleEditReseller} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Revendedor</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Transferir */}
+                    <Modal isOpen={showTransferModal} onClose={() => { setShowTransferModal(false); setSelectedReseller(null); }} title="Transferir Produtos para Revendedor">
+                        <div className="space-y-4">
+                            {selectedReseller && (
+                                <div className="p-3 bg-purple-50 rounded-lg">
+                                    <p className="font-bold">{selectedReseller.salonName}</p>
+                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
+                                </div>
+                            )}
+                            <SearchableDropdown label="Produto *" options={productOptions} value={transferForm.productId} onChange={(value) => setTransferForm({...transferForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
+                                <input type="number" value={transferForm.quantity} onChange={(e) => setTransferForm({...transferForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Data da Transferência</label>
+                                <input type="date" value={transferForm.date} onChange={(e) => setTransferForm({...transferForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleTransfer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-exchange-alt mr-2"></i>Transferir</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Venda Revendedor */}
+                    <Modal isOpen={showResellerSaleModal} onClose={() => { setShowResellerSaleModal(false); setSelectedReseller(null); }} title="Registrar Venda do Revendedor">
+                        <div className="space-y-4">
+                            {selectedReseller && (
+                                <div className="p-3 bg-green-50 rounded-lg">
+                                    <p className="font-bold">{selectedReseller.salonName}</p>
+                                    <p className="text-sm text-gray-600">Comissão: {selectedReseller.commissionRate}%</p>
+                                </div>
+                            )}
+                            <SearchableDropdown label="Produto *" options={productOptions} value={resellerSaleForm.productId} onChange={(value) => setResellerSaleForm({...resellerSaleForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
+                                    <input type="number" value={resellerSaleForm.quantity} onChange={(e) => setResellerSaleForm({...resellerSaleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
+                                    <input type="number" value={resellerSaleForm.salePrice} onChange={(e) => setResellerSaleForm({...resellerSaleForm, salePrice: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
+                                <input type="date" value={resellerSaleForm.date} onChange={(e) => setResellerSaleForm({...resellerSaleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            {resellerSaleForm.salePrice && resellerSaleForm.quantity && selectedReseller && (
+                                <div className="p-4 bg-green-50 rounded-lg space-y-2">
+                                    <p className="text-sm"><strong>Total Venda:</strong> {formatCurrency(resellerSaleForm.salePrice * resellerSaleForm.quantity)}</p>
+                                    <p className="text-sm text-orange-600"><strong>Comissão ({selectedReseller.commissionRate}%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * (selectedReseller.commissionRate / 100))}</p>
+                                    <p className="text-sm text-green-600 font-bold"><strong>Seu Ganho (75%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * ((100 - selectedReseller.commissionRate) / 100))}</p>
+                                </div>
+                            )}
+                            <button onClick={handleResellerSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
+                        </div>
+                    </Modal>
+
+                    {/* Modal Devolução */}
+                    <Modal isOpen={showReturnModal} onClose={() => { setShowReturnModal(false); setSelectedReseller(null); }} title="Devolver Produtos do Revendedor">
+                        <div className="space-y-4">
+                            {selectedReseller && (
+                                <div className="p-3 bg-orange-50 rounded-lg">
+                                    <p className="font-bold">{selectedReseller.salonName}</p>
+                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
+                                </div>
+                            )}
+                            <SearchableDropdown label="Produto *" options={productOptions} value={returnForm.productId} onChange={(value) => setReturnForm({...returnForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
+                                <input type="number" value={returnForm.quantity} onChange={(e) => setReturnForm({...returnForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Data da Devolução</label>
+                                <input type="date" value={returnForm.date} onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleReturn} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg transition"><i className="fas fa-undo mr-2"></i>Devolver Produtos</button>
+                        </div>
+                    </Modal>
+
                     {/* Modal Confirmar Exclusão */}
                     <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setDeleteItem(null); }} title="Confirmar Exclusão">
                         <div className="space-y-4">
@@ -1533,7 +1791,7 @@
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Revendedores: Comodato 25% comissão • {new Date().getFullYear()}</p>
+                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Filtros Avançados • Exportação CSV • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
