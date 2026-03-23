@@ -21,6 +21,8 @@
         .btn-edit:hover { background-color: #2563eb; }
         .btn-delete { background-color: #ef4444; }
         .btn-delete:hover { background-color: #dc2626; }
+        .btn-view { background-color: #8b5cf6; }
+        .btn-view:hover { background-color: #7c3aed; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -32,11 +34,12 @@
         // ==================== UTILITÁRIOS ====================
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
         
-        const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { 
-            style: 'currency', currency: 'BRL' 
+        // MUDANÇA: Agora em Euro (€)
+        const formatCurrency = (value) => new Intl.NumberFormat('pt-PT', { 
+            style: 'currency', currency: 'EUR' 
         }).format(value);
 
-        const formatDate = (date) => new Date(date).toLocaleDateString('pt-BR');
+        const formatDate = (date) => new Date(date).toLocaleDateString('pt-PT');
 
         const calculateDaysUntilExpiry = (expiryDate) => {
             const today = new Date();
@@ -101,6 +104,7 @@
             const [showProductModal, setShowProductModal] = useState(false);
             const [showEditProductModal, setShowEditProductModal] = useState(false);
             const [showSaleModal, setShowSaleModal] = useState(false);
+            const [showEditSaleModal, setShowEditSaleModal] = useState(false);
             const [showCustomerModal, setShowCustomerModal] = useState(false);
             const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
             const [showCreditModal, setShowCreditModal] = useState(false);
@@ -108,8 +112,12 @@
             
             // Estados para Edição/Exclusão
             const [editingProduct, setEditingProduct] = useState(null);
+            const [editingSale, setEditingSale] = useState(null);
             const [editingCustomer, setEditingCustomer] = useState(null);
             const [deleteItem, setDeleteItem] = useState(null);
+            
+            // Filtro de Clientes
+            const [customerSort, setCustomerSort] = useState('default'); // default, spent, purchases
             
             // Formulários
             const [productForm, setProductForm] = useState({
@@ -119,7 +127,7 @@
                 productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0]
             });
             const [saleForm, setSaleForm] = useState({
-                productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'pix', date: new Date().toISOString().split('T')[0]
+                productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0]
             });
             const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
             const [creditForm, setCreditForm] = useState({
@@ -194,7 +202,7 @@
                 return { totalSold, totalInvested, totalProfit, topProducts, monthlySales, monthlyPurchases };
             }, [sales, purchases, products]);
 
-            // ==================== NOVO: VALOR DO ESTOQUE ====================
+            // ==================== VALOR DO ESTOQUE ====================
             const stockValueReport = useMemo(() => {
                 let totalPaidValue = 0;
                 let totalSaleValue = 0;
@@ -215,6 +223,21 @@
                     profitMargin: totalPaidValue > 0 ? ((totalSaleValue - totalPaidValue) / totalPaidValue) * 100 : 0
                 };
             }, [products, purchases, sales]);
+
+            // ==================== CLIENTES - DADOS PARA FILTRO ====================
+            const customersWithStats = useMemo(() => {
+                return customers.map(c => {
+                    const customerSales = sales.filter(s => s.customerId === c.id);
+                    const totalSpent = customerSales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
+                    const totalPurchases = customerSales.length;
+                    return {
+                        ...c,
+                        totalSpent,
+                        totalPurchases,
+                        lastPurchase: customerSales.length > 0 ? customerSales[customerSales.length - 1].date : null
+                    };
+                });
+            }, [customers, sales]);
 
             // ==================== PRODUTOS ====================
             const handleAddProduct = () => {
@@ -315,14 +338,7 @@
                 setShowDeleteModal(true);
             };
 
-            // ==================== OUTROS HANDLERS ====================
-            const handleAddPurchase = () => {
-                if (!purchaseForm.productId || purchaseForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
-                const newPurchase = { id: generateId(), ...purchaseForm, quantity: parseInt(purchaseForm.quantity), price: parseFloat(purchaseForm.price) };
-                setPurchases([...purchases, newPurchase]);
-                setPurchaseForm({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
-            };
-
+            // ==================== VENDAS ====================
             const handleAddSale = () => {
                 if (!saleForm.productId || saleForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
                 const stock = calculateStock(saleForm.productId);
@@ -333,8 +349,64 @@
                     setCreditForm({ saleId: newSale.id, amount: newSale.price * newSale.quantity, dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], status: 'pendente' });
                     setShowCreditModal(true);
                 }
-                setSaleForm({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'pix', date: new Date().toISOString().split('T')[0] });
+                setSaleForm({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
                 setShowSaleModal(false);
+            };
+
+            // NOVO: Editar Venda
+            const handleEditSale = () => {
+                if (!editingSale || !saleForm.productId || saleForm.quantity <= 0) { alert('Dados inválidos!'); return; }
+                const updatedSales = sales.map(s => {
+                    if (s.id === editingSale.id) {
+                        const newQuantity = parseInt(saleForm.quantity);
+                        const newPrice = parseFloat(saleForm.price);
+                        return {
+                            ...s,
+                            ...saleForm,
+                            quantity: newQuantity,
+                            price: newPrice,
+                            profit: (newPrice - calculateAveragePrice(saleForm.productId)) * newQuantity
+                        };
+                    }
+                    return s;
+                });
+                setSales(updatedSales);
+                setEditingSale(null);
+                setSaleForm({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
+                setShowEditSaleModal(false);
+            };
+
+            const openEditSale = (sale) => {
+                setEditingSale(sale);
+                setSaleForm({
+                    productId: sale.productId,
+                    customerId: sale.customerId || '',
+                    quantity: sale.quantity,
+                    price: sale.price,
+                    paymentMethod: sale.paymentMethod,
+                    date: sale.date
+                });
+                setShowEditSaleModal(true);
+            };
+
+            const handleDeleteSale = () => {
+                if (!deleteItem) return;
+                setSales(sales.filter(s => s.id !== deleteItem.id));
+                setDeleteItem(null);
+                setShowDeleteModal(false);
+            };
+
+            const confirmDeleteSale = (sale) => {
+                setDeleteItem({ type: 'sale', ...sale });
+                setShowDeleteModal(true);
+            };
+
+            // ==================== OUTROS HANDLERS ====================
+            const handleAddPurchase = () => {
+                if (!purchaseForm.productId || purchaseForm.quantity <= 0) { alert('Produto e quantidade válidos são obrigatórios!'); return; }
+                const newPurchase = { id: generateId(), ...purchaseForm, quantity: parseInt(purchaseForm.quantity), price: parseFloat(purchaseForm.price) };
+                setPurchases([...purchases, newPurchase]);
+                setPurchaseForm({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
             };
 
             const handleAddCredit = () => {
@@ -351,7 +423,7 @@
 
             // ==================== EXPORTAR/IMPORTAR ====================
             const exportData = () => {
-                const data = { exportDate: new Date().toISOString(), version: '1.3', products, purchases, sales, customers, creditSales, config: { lowStockThreshold, expiryAlertDays } };
+                const data = { exportDate: new Date().toISOString(), version: '1.4', products, purchases, sales, customers, creditSales, config: { lowStockThreshold, expiryAlertDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -399,6 +471,17 @@
                     saleValue: calculateStock(p.id) * (parseFloat(p.catalogPrice) || 0)
                 })).sort((a, b) => a.stock - b.stock);
             }, [products, purchases, sales]);
+
+            // ==================== CLIENTES ORDENADOS ====================
+            const sortedCustomers = useMemo(() => {
+                let sorted = [...customersWithStats];
+                if (customerSort === 'spent') {
+                    sorted.sort((a, b) => b.totalSpent - a.totalSpent);
+                } else if (customerSort === 'purchases') {
+                    sorted.sort((a, b) => b.totalPurchases - a.totalPurchases);
+                }
+                return sorted;
+            }, [customersWithStats, customerSort]);
 
             // ==================== RENDER ====================
             return (
@@ -454,7 +537,6 @@
                         {/* DASHBOARD */}
                         {activeTab === 'dashboard' && (
                             <div className="space-y-6">
-                                {/* Cards Principais */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <StatCard title="Vendas do Mês" value={formatCurrency(financialReport.totalSold)} icon="fa-shopping-cart" color="border-green-400" />
                                     <StatCard title="Investido no Mês" value={formatCurrency(financialReport.totalInvested)} icon="fa-wallet" color="border-red-400" />
@@ -462,32 +544,12 @@
                                     <StatCard title="Fiado Pendente" value={formatCurrency(pendingCreditSales.reduce((sum, c) => sum + c.amount, 0))} icon="fa-hand-holding-usd" color="border-yellow-400" />
                                 </div>
 
-                                {/* NOVOS CARDS: VALOR DO ESTOQUE */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <StatCard 
-                                        title="📦 Estoque (Preço Pago)" 
-                                        value={formatCurrency(stockValueReport.totalPaidValue)} 
-                                        icon="fa-boxes" 
-                                        color="border-purple-400"
-                                        smallText="Quanto você investiu"
-                                    />
-                                    <StatCard 
-                                        title="💰 Estoque (Preço Venda)" 
-                                        value={formatCurrency(stockValueReport.totalSaleValue)} 
-                                        icon="fa-tag" 
-                                        color="border-green-400"
-                                        smallText="Preço catálogo O Boticário"
-                                    />
-                                    <StatCard 
-                                        title="🎯 Lucro Potencial" 
-                                        value={formatCurrency(stockValueReport.potentialProfit)} 
-                                        icon="fa-chart-line" 
-                                        color={stockValueReport.potentialProfit >= 0 ? "border-green-400" : "border-red-400"}
-                                        smallText={`Margem: ${stockValueReport.profitMargin.toFixed(1)}%`}
-                                    />
+                                    <StatCard title="📦 Estoque (Preço Pago)" value={formatCurrency(stockValueReport.totalPaidValue)} icon="fa-boxes" color="border-purple-400" smallText="Quanto você investiu" />
+                                    <StatCard title="💰 Estoque (Preço Venda)" value={formatCurrency(stockValueReport.totalSaleValue)} icon="fa-tag" color="border-green-400" smallText="Preço catálogo O Boticário" />
+                                    <StatCard title="🎯 Lucro Potencial" value={formatCurrency(stockValueReport.potentialProfit)} icon="fa-chart-line" color={stockValueReport.potentialProfit >= 0 ? "border-green-400" : "border-red-400"} smallText={`Margem: ${stockValueReport.profitMargin.toFixed(1)}%`} />
                                 </div>
 
-                                {/* Alertas */}
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {lowStockProducts.length > 0 && (
                                         <div className="alert-red rounded-lg p-4">
@@ -503,7 +565,6 @@
                                     )}
                                 </div>
 
-                                {/* Top Produtos */}
                                 <div className="bg-white rounded-lg shadow-md p-6">
                                     <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-trophy text-yellow-500 mr-2"></i>Top 5 Produtos</h3>
                                     <div className="space-y-3">
@@ -536,7 +597,6 @@
                                     </div>
                                 </div>
 
-                                {/* Resumo do Stock */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
                                         <p className="text-purple-100 text-sm">Valor Pago em Stock</p>
@@ -552,7 +612,6 @@
                                     </div>
                                 </div>
 
-                                {/* Tabela de Stock */}
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
                                     <table className="w-full min-w-[900px]">
                                         <thead className="bg-gray-50">
@@ -572,39 +631,19 @@
                                                 <tr key={p.id} className={`border-t ${p.stock < lowStockThreshold ? 'bg-red-50' : p.stock < lowStockThreshold * 2 ? 'bg-yellow-50' : ''}`}>
                                                     <td className="p-4 font-medium">{p.name}</td>
                                                     <td className="p-4"><span className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm">{p.category}</span></td>
+                                                    <td className="p-4 text-center"><span className={`font-bold text-lg ${p.stock === 0 ? 'text-red-600' : p.stock < lowStockThreshold ? 'text-orange-600' : 'text-green-600'}`}>{p.stock}</span></td>
                                                     <td className="p-4 text-center">
-                                                        <span className={`font-bold text-lg ${p.stock === 0 ? 'text-red-600' : p.stock < lowStockThreshold ? 'text-orange-600' : 'text-green-600'}`}>{p.stock}</span>
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        {p.stock === 0 ? (
-                                                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">SEM STOCK</span>
-                                                        ) : p.stock < lowStockThreshold ? (
-                                                            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-bold">BAIXO</span>
-                                                        ) : (
-                                                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">OK</span>
-                                                        )}
+                                                        {p.stock === 0 ? <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-bold">SEM STOCK</span> : p.stock < lowStockThreshold ? <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-bold">BAIXO</span> : <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">OK</span>}
                                                     </td>
                                                     <td className="p-4">{formatCurrency(p.avgPrice)}</td>
                                                     <td className="p-4">{formatCurrency(parseFloat(p.catalogPrice) || 0)}</td>
                                                     <td className="p-4 font-medium">{formatCurrency(p.paidValue)}</td>
-                                                    <td className="p-4">
-                                                        {p.expiryDate ? (
-                                                            <span className={p.daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : 'text-gray-600'}>
-                                                                {formatDate(p.expiryDate)}
-                                                                {p.daysToExpiry <= expiryAlertDays && <span className="block text-xs">({p.daysToExpiry} dias)</span>}
-                                                            </span>
-                                                        ) : '-'}
-                                                    </td>
+                                                    <td className="p-4">{p.expiryDate ? <span className={p.daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : 'text-gray-600'}>{formatDate(p.expiryDate)}{p.daysToExpiry <= expiryAlertDays && <span className="block text-xs">({p.daysToExpiry} dias)</span>}</span> : '-'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
-                                    {stockData.length === 0 && (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <i className="fas fa-warehouse text-4xl mb-3"></i>
-                                            <p>Nenhum produto em stock</p>
-                                        </div>
-                                    )}
+                                    {stockData.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-warehouse text-4xl mb-3"></i><p>Nenhum produto em stock</p></div>}
                                 </div>
                             </div>
                         )}
@@ -648,12 +687,8 @@
                                                         <td className="p-4 text-center"><span className={`font-bold ${stock < lowStockThreshold ? 'text-red-600' : 'text-green-600'}`}>{stock} un.</span></td>
                                                         <td className="p-4 text-center">
                                                             <div className="flex justify-center gap-2">
-                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm" title="Editar">
-                                                                    <i className="fas fa-edit"></i>
-                                                                </button>
-                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm" title="Excluir">
-                                                                    <i className="fas fa-trash"></i>
-                                                                </button>
+                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm" title="Editar"><i className="fas fa-edit"></i></button>
+                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm" title="Excluir"><i className="fas fa-trash"></i></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -661,12 +696,7 @@
                                             })}
                                         </tbody>
                                     </table>
-                                    {products.length === 0 && (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <i className="fas fa-box-open text-4xl mb-3"></i>
-                                            <p>Nenhum produto cadastrado</p>
-                                        </div>
-                                    )}
+                                    {products.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-box-open text-4xl mb-3"></i><p>Nenhum produto cadastrado</p></div>}
                                 </div>
                             </div>
                         )}
@@ -682,7 +712,7 @@
                                 </div>
 
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[900px]">
+                                    <table className="w-full min-w-[1000px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Data</th>
@@ -693,6 +723,7 @@
                                                 <th className="p-4 text-left">Total</th>
                                                 <th className="p-4 text-left">Lucro</th>
                                                 <th className="p-4 text-left">Pagamento</th>
+                                                <th className="p-4 text-center">Ações</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -709,17 +740,18 @@
                                                         <td className="p-4 font-bold">{formatCurrency(s.price * s.quantity)}</td>
                                                         <td className="p-4"><span className={s.profit >= 0 ? 'text-green-600' : 'text-red-600'}>{formatCurrency(s.profit)}</span></td>
                                                         <td className="p-4"><span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">{s.paymentMethod}</span></td>
+                                                        <td className="p-4 text-center">
+                                                            <div className="flex justify-center gap-2">
+                                                                <button onClick={() => openEditSale(s)} className="btn-edit text-white px-3 py-1 rounded text-sm" title="Editar"><i className="fas fa-edit"></i></button>
+                                                                <button onClick={() => confirmDeleteSale(s)} className="btn-delete text-white px-3 py-1 rounded text-sm" title="Excluir"><i className="fas fa-trash"></i></button>
+                                                            </div>
+                                                        </td>
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
                                     </table>
-                                    {sales.length === 0 && (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <i className="fas fa-shopping-cart text-4xl mb-3"></i>
-                                            <p>Nenhuma venda registrada</p>
-                                        </div>
-                                    )}
+                                    {sales.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-shopping-cart text-4xl mb-3"></i><p>Nenhuma venda registrada</p></div>}
                                 </div>
                             </div>
                         )}
@@ -739,7 +771,7 @@
                                             {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                         </select>
                                         <input type="number" placeholder="Quantidade" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({...purchaseForm, quantity: e.target.value})} className="border rounded-lg p-3 text-sm" />
-                                        <input type="number" placeholder="Preço Unitário (R$)" value={purchaseForm.price} onChange={(e) => setPurchaseForm({...purchaseForm, price: e.target.value})} className="border rounded-lg p-3 text-sm" />
+                                        <input type="number" placeholder="Preço Unitário (€)" value={purchaseForm.price} onChange={(e) => setPurchaseForm({...purchaseForm, price: e.target.value})} className="border rounded-lg p-3 text-sm" />
                                         <input type="date" value={purchaseForm.date} onChange={(e) => setPurchaseForm({...purchaseForm, date: e.target.value})} className="border rounded-lg p-3 text-sm" />
                                     </div>
                                     <button onClick={handleAddPurchase} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm">
@@ -783,7 +815,7 @@
                             </div>
                         )}
 
-                        {/* CLIENTES */}
+                        {/* CLIENTES - COM FILTRO */}
                         {activeTab === 'customers' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
@@ -793,10 +825,33 @@
                                     </button>
                                 </div>
 
+                                {/* Filtro de Clientes */}
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <span className="text-gray-700 font-medium"><i className="fas fa-filter mr-2"></i>Ordenar por:</span>
+                                        <button 
+                                            onClick={() => setCustomerSort('default')}
+                                            className={`px-4 py-2 rounded-lg transition text-sm ${customerSort === 'default' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                        >
+                                            <i className="fas fa-list mr-2"></i>Recentes
+                                        </button>
+                                        <button 
+                                            onClick={() => setCustomerSort('spent')}
+                                            className={`px-4 py-2 rounded-lg transition text-sm ${customerSort === 'spent' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                        >
+                                            <i className="fas fa-euro-sign mr-2"></i>Mais Gastaram
+                                        </button>
+                                        <button 
+                                            onClick={() => setCustomerSort('purchases')}
+                                            className={`px-4 py-2 rounded-lg transition text-sm ${customerSort === 'purchases' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                        >
+                                            <i className="fas fa-shopping-bag mr-2"></i>Mais Compras
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {customers.map(c => {
-                                        const customerSales = sales.filter(s => s.customerId === c.id);
-                                        const totalSpent = customerSales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
+                                    {sortedCustomers.map(c => {
                                         return (
                                             <div key={c.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
                                                 <div className="flex items-start justify-between mb-3">
@@ -810,29 +865,36 @@
                                                         </div>
                                                     </div>
                                                     <div className="flex gap-1">
-                                                        <button onClick={() => openEditCustomer(c)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar">
-                                                            <i className="fas fa-edit"></i>
-                                                        </button>
-                                                        <button onClick={() => confirmDeleteCustomer(c)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir">
-                                                            <i className="fas fa-trash"></i>
-                                                        </button>
+                                                        <button onClick={() => openEditCustomer(c)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar"><i className="fas fa-edit"></i></button>
+                                                        <button onClick={() => confirmDeleteCustomer(c)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir"><i className="fas fa-trash"></i></button>
                                                     </div>
                                                 </div>
                                                 <div className="space-y-1 text-sm">
                                                     <p><i className="fas fa-envelope mr-2"></i>{c.email || 'Sem email'}</p>
-                                                    <p><i className="fas fa-shopping-bag mr-2"></i>{customerSales.length} compras</p>
-                                                    <p><i className="fas fa-coins mr-2"></i>Total: {formatCurrency(totalSpent)}</p>
+                                                    <p><i className="fas fa-shopping-bag mr-2"></i>{c.totalPurchases} compras</p>
+                                                    <p><i className="fas fa-euro-sign mr-2"></i>Total: {formatCurrency(c.totalSpent)}</p>
                                                 </div>
+                                                {customerSort === 'spent' && c.totalSpent > 0 && (
+                                                    <div className="mt-3 pt-3 border-t">
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <i className="fas fa-trophy text-yellow-500"></i>
+                                                            <span className="text-gray-600">Cliente valorizado</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {customerSort === 'purchases' && c.totalPurchases > 0 && (
+                                                    <div className="mt-3 pt-3 border-t">
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <i className="fas fa-star text-blue-500"></i>
+                                                            <span className="text-gray-600">Cliente frequente</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
                                 </div>
-                                {customers.length === 0 && (
-                                    <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-                                        <i className="fas fa-users text-4xl mb-3"></i>
-                                        <p>Nenhum cliente cadastrado</p>
-                                    </div>
-                                )}
+                                {customers.length === 0 && <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500"><i className="fas fa-users text-4xl mb-3"></i><p>Nenhum cliente cadastrado</p></div>}
                             </div>
                         )}
 
@@ -966,8 +1028,8 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (R$)</label>
-                                    <input type="number" value={productForm.catalogPrice} onChange={(e) => setProductForm({...productForm, catalogPrice: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: 89,90" step="0.01" />
+                                    <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (€)</label>
+                                    <input type="number" value={productForm.catalogPrice} onChange={(e) => setProductForm({...productForm, catalogPrice: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: 45,90" step="0.01" />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -1007,7 +1069,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (R$)</label>
+                                    <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (€)</label>
                                     <input type="number" value={productForm.catalogPrice} onChange={(e) => setProductForm({...productForm, catalogPrice: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
                                 </div>
                             </div>
@@ -1052,16 +1114,17 @@
                                     <input type="number" value={saleForm.quantity} onChange={(e) => setSaleForm({...saleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (R$) *</label>
+                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
                                     <input type="number" value={saleForm.price} onChange={(e) => setSaleForm({...saleForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Método de Pagamento</label>
                                 <select value={saleForm.paymentMethod} onChange={(e) => setSaleForm({...saleForm, paymentMethod: e.target.value})} className="w-full border rounded-lg p-3">
-                                    <option value="pix">PIX</option>
+                                    <option value="bizum">Bizum</option>
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="cartao">Cartão</option>
+                                    <option value="transferencia">Transferência</option>
                                     <option value="credito">Fiado/Crédito</option>
                                 </select>
                             </div>
@@ -1079,6 +1142,54 @@
                         </div>
                     </Modal>
 
+                    {/* NOVO: Modal Editar Venda */}
+                    <Modal isOpen={showEditSaleModal} onClose={() => { setShowEditSaleModal(false); setEditingSale(null); }} title="Editar Venda">
+                        <div className="space-y-4">
+                            <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
+                                <p className="text-yellow-800 text-sm"><i className="fas fa-info-circle mr-2"></i>Editando venda de {formatDate(editingSale?.date)}</p>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Produto *</label>
+                                <select value={saleForm.productId} onChange={(e) => setSaleForm({...saleForm, productId: e.target.value})} className="w-full border rounded-lg p-3">
+                                    <option value="">Selecione o Produto</option>
+                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} (Estoque: {calculateStock(p.id)})</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Cliente</label>
+                                <select value={saleForm.customerId} onChange={(e) => setSaleForm({...saleForm, customerId: e.target.value})} className="w-full border rounded-lg p-3">
+                                    <option value="">Não informado</option>
+                                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
+                                    <input type="number" value={saleForm.quantity} onChange={(e) => setSaleForm({...saleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
+                                    <input type="number" value={saleForm.price} onChange={(e) => setSaleForm({...saleForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Método de Pagamento</label>
+                                <select value={saleForm.paymentMethod} onChange={(e) => setSaleForm({...saleForm, paymentMethod: e.target.value})} className="w-full border rounded-lg p-3">
+                                    <option value="bizum">Bizum</option>
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="cartao">Cartão</option>
+                                    <option value="transferencia">Transferência</option>
+                                    <option value="credito">Fiado/Crédito</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
+                                <input type="date" value={saleForm.date} onChange={(e) => setSaleForm({...saleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
+                            </div>
+                            <button onClick={handleEditSale} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Venda</button>
+                        </div>
+                    </Modal>
+
                     {/* Modal Novo Cliente */}
                     <Modal isOpen={showCustomerModal} onClose={() => setShowCustomerModal(false)} title="Novo Cliente">
                         <div className="space-y-4">
@@ -1088,7 +1199,7 @@
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="(00) 00000-0000" />
+                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
@@ -1107,7 +1218,7 @@
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="(00) 00000-0000" />
+                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
                             </div>
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
@@ -1121,7 +1232,7 @@
                     <Modal isOpen={showCreditModal} onClose={() => setShowCreditModal(false)} title="Registro de Fiado">
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-gray-700 font-medium mb-2">Valor (R$) *</label>
+                                <label className="block text-gray-700 font-medium mb-2">Valor (€) *</label>
                                 <input type="number" value={creditForm.amount} onChange={(e) => setCreditForm({...creditForm, amount: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
                             </div>
                             <div>
@@ -1138,9 +1249,9 @@
                             <div className="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
                                 <p className="text-red-800 font-bold"><i className="fas fa-exclamation-triangle mr-2"></i>Atenção!</p>
                                 <p className="text-red-700 mt-2">
-                                    {deleteItem?.type === 'product' 
-                                        ? `Tem certeza que deseja excluir o produto "${deleteItem?.name}"?` 
-                                        : `Tem certeza que deseja excluir o cliente "${deleteItem?.name}"?`}
+                                    {deleteItem?.type === 'product' ? `Tem certeza que deseja excluir o produto "${deleteItem?.name}"?` : 
+                                     deleteItem?.type === 'customer' ? `Tem certeza que deseja excluir o cliente "${deleteItem?.name}"?` :
+                                     `Tem certeza que deseja excluir esta venda de ${formatCurrency(deleteItem?.price * deleteItem?.quantity)}?`}
                                 </p>
                                 <p className="text-red-600 text-sm mt-2">Esta ação não pode ser desfeita!</p>
                             </div>
@@ -1148,7 +1259,7 @@
                                 <button onClick={() => { setShowDeleteModal(false); setDeleteItem(null); }} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg transition">
                                     <i className="fas fa-times mr-2"></i>Cancelar
                                 </button>
-                                <button onClick={deleteItem?.type === 'product' ? handleDeleteProduct : handleDeleteCustomer} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg transition">
+                                <button onClick={deleteItem?.type === 'product' ? handleDeleteProduct : deleteItem?.type === 'customer' ? handleDeleteCustomer : handleDeleteSale} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg transition">
                                     <i className="fas fa-trash mr-2"></i>Excluir
                                 </button>
                             </div>
@@ -1159,7 +1270,7 @@
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">Dados armazenados localmente • Use Exportar/Importar para backup • {new Date().getFullYear()}</p>
+                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Pagamento: Bizum • Dados armazenados localmente • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
