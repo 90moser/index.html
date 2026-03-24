@@ -26,6 +26,8 @@
         .btn-transfer:hover { background-color: #7c3aed; }
         .btn-buy { background-color: #059669; }
         .btn-buy:hover { background-color: #047857; }
+        .btn-adjust { background-color: #f59e0b; }
+        .btn-adjust:hover { background-color: #d97706; }
         
         .searchable-dropdown { position: relative; }
         .dropdown-options { max-height: 200px; overflow-y: auto; position: absolute; z-index: 50; width: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -220,6 +222,7 @@
             const [resellerStock, setResellerStock] = useState([]);
             const [resellerSales, setResellerSales] = useState([]);
             const [resellerReturns, setResellerReturns] = useState([]);
+            const [stockAdjustments, setStockAdjustments] = useState([]);
             
             // Estados de Modal
             const [showProductModal, setShowProductModal] = useState(false);
@@ -236,6 +239,7 @@
             const [showResellerSaleModal, setShowResellerSaleModal] = useState(false);
             const [showReturnModal, setShowReturnModal] = useState(false);
             const [showQuickBuyModal, setShowQuickBuyModal] = useState(false);
+            const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
             
             // Estados para Edição/Exclusão
             const [editingProduct, setEditingProduct] = useState(null);
@@ -245,6 +249,7 @@
             const [deleteItem, setDeleteItem] = useState(null);
             const [selectedReseller, setSelectedReseller] = useState(null);
             const [quickBuyProduct, setQuickBuyProduct] = useState(null);
+            const [adjustStockProduct, setAdjustStockProduct] = useState(null);
             
             // Filtros
             const [customerSort, setCustomerSort] = useState('default');
@@ -270,6 +275,7 @@
             const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
             const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
             const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
+            const [adjustStockForm, setAdjustStockForm] = useState({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
 
             // Configurações
             const [lowStockThreshold, setLowStockThreshold] = useState(3);
@@ -293,6 +299,7 @@
                 setResellerStock(loadData('resellerStock'));
                 setResellerSales(loadData('resellerSales'));
                 setResellerReturns(loadData('resellerReturns'));
+                setStockAdjustments(loadData('stockAdjustments'));
                 const config = localStorage.getItem('boticario_config');
                 if (config) {
                     const cfg = JSON.parse(config);
@@ -312,8 +319,9 @@
                 localStorage.setItem('boticario_resellerStock', JSON.stringify(resellerStock));
                 localStorage.setItem('boticario_resellerSales', JSON.stringify(resellerSales));
                 localStorage.setItem('boticario_resellerReturns', JSON.stringify(resellerReturns));
+                localStorage.setItem('boticario_stockAdjustments', JSON.stringify(stockAdjustments));
                 localStorage.setItem('boticario_config', JSON.stringify({ lowStockThreshold, expiryAlertDays, staleProductDays }));
-            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, lowStockThreshold, expiryAlertDays, staleProductDays]);
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, lowStockThreshold, expiryAlertDays, staleProductDays]);
 
             // ==================== CÁLCULOS ====================
             const calculateAveragePrice = (productId) => {
@@ -330,7 +338,9 @@
                 const totalToResellers = resellerStock.filter(t => t.productId === productId).reduce((sum, t) => sum + parseInt(t.quantity), 0);
                 const totalReturned = resellerReturns.filter(r => r.productId === productId).reduce((sum, r) => sum + parseInt(r.quantity), 0);
                 const totalResellerSales = resellerSales.filter(s => s.productId === productId).reduce((sum, s) => sum + parseInt(s.quantity), 0);
-                return totalIn - totalOut - totalToResellers + totalReturned + totalResellerSales;
+                const adjustmentsIn = stockAdjustments.filter(a => a.productId === productId && a.type === 'entrada').reduce((sum, a) => sum + parseInt(a.quantity), 0);
+                const adjustmentsOut = stockAdjustments.filter(a => a.productId === productId && a.type === 'saida').reduce((sum, a) => sum + parseInt(a.quantity), 0);
+                return totalIn - totalOut - totalToResellers + totalReturned + totalResellerSales + adjustmentsIn - adjustmentsOut;
             };
 
             const calculateResellerStock = (resellerId, productId) => {
@@ -382,7 +392,7 @@
             const filteredStock = useMemo(() => filterAndSortProducts(products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy), [products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy]);
 
             // ==================== ALERTAS ====================
-            const lowStockProducts = useMemo(() => products.filter(p => calculateStock(p.id) < lowStockThreshold), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, lowStockThreshold]);
+            const lowStockProducts = useMemo(() => products.filter(p => calculateStock(p.id) < lowStockThreshold), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments, lowStockThreshold]);
             const expiryAlertProducts = useMemo(() => products.filter(p => p.expiryDate && calculateDaysUntilExpiry(p.expiryDate) <= expiryAlertDays), [products, expiryAlertDays]);
             const pendingCreditSales = useMemo(() => creditSales.filter(c => c.status === 'pendente'), [creditSales]);
             const staleResellerProducts = useMemo(() => {
@@ -428,7 +438,7 @@
                     }
                 });
                 return { totalPaidValue, totalSaleValue, potentialProfit: totalSaleValue - totalPaidValue, profitMargin: totalPaidValue > 0 ? ((totalSaleValue - totalPaidValue) / totalPaidValue) * 100 : 0 };
-            }, [products, purchases, sales, resellerStock, resellerSales, resellerReturns]);
+            }, [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
 
             const customersWithStats = useMemo(() => {
                 return customers.map(c => {
@@ -622,8 +632,35 @@
 
             const markCreditAsPaid = (creditId) => { setCreditSales(creditSales.map(c => c.id === creditId ? { ...c, status: 'pago' } : c)); };
 
+            // NOVO: Ajuste de Stock
+            const handleAdjustStock = () => {
+                if (!adjustStockProduct || !adjustStockForm.quantity || adjustStockForm.quantity <= 0) { alert('Dados inválidos!'); return; }
+                
+                const adjustment = {
+                    id: generateId(),
+                    productId: adjustStockProduct.id,
+                    productName: adjustStockProduct.name,
+                    ...adjustStockForm,
+                    quantity: parseInt(adjustStockForm.quantity),
+                    date: adjustStockForm.date || new Date().toISOString().split('T')[0],
+                    createdAt: new Date().toISOString()
+                };
+                
+                setStockAdjustments([...stockAdjustments, adjustment]);
+                setAdjustStockProduct(null);
+                setAdjustStockForm({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
+                setShowAdjustStockModal(false);
+                alert('✅ Ajuste de stock registrado com sucesso!');
+            };
+
+            const openAdjustStock = (product) => {
+                setAdjustStockProduct(product);
+                setAdjustStockForm({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
+                setShowAdjustStockModal(true);
+            };
+
             const exportData = () => {
-                const data = { exportDate: new Date().toISOString(), version: '2.1', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
+                const data = { exportDate: new Date().toISOString(), version: '2.2', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -673,6 +710,7 @@
                             if (data.resellerStock) setResellerStock(data.resellerStock);
                             if (data.resellerSales) setResellerSales(data.resellerSales);
                             if (data.resellerReturns) setResellerReturns(data.resellerReturns);
+                            if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
                             if (data.config) { setLowStockThreshold(data.config.lowStockThreshold || 3); setExpiryAlertDays(data.config.expiryAlertDays || 30); setStaleProductDays(data.config.staleProductDays || 30); }
                             alert('✅ Dados importados com sucesso!');
                             setActiveTab('dashboard');
@@ -685,8 +723,8 @@
 
             const triggerImport = () => { fileInputRef.current.click(); };
 
-            const stockData = useMemo(() => products.map(p => ({ ...p, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id), daysToExpiry: p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns]);
-            const productOptions = useMemo(() => products.map(p => ({ value: p.id, label: p.name, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id) })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns]);
+            const stockData = useMemo(() => products.map(p => ({ ...p, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id), daysToExpiry: p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
+            const productOptions = useMemo(() => products.map(p => ({ value: p.id, label: p.name, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id) })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
             const customerOptions = useMemo(() => customers.map(c => ({ value: c.id, label: c.name, phone: c.phone || '' })), [customers]);
             const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
 
@@ -824,7 +862,7 @@
                             </div>
                         )}
 
-                        {/* STOCK - COM EDIÇÃO */}
+                        {/* STOCK - COM AJUSTE MANUAL */}
                         {activeTab === 'stock' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
@@ -850,7 +888,7 @@
                                     </div>
                                 </div>
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[1100px]">
+                                    <table className="w-full min-w-[1200px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Produto</th>
@@ -886,9 +924,10 @@
                                                         <td className="p-4 text-center">
                                                             <div className="flex justify-center gap-1 flex-wrap">
                                                                 <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-2 py-1.5 rounded text-xs" title="Editar Produto"><i className="fas fa-edit"></i></button>
+                                                                <button onClick={() => openAdjustStock(p)} className="btn-adjust text-white px-2 py-1.5 rounded text-xs" title="Ajustar Stock"><i className="fas fa-sliders-h"></i></button>
                                                                 {stock < lowStockThreshold && <button onClick={() => openQuickBuy(p)} className="btn-buy text-white px-2 py-1.5 rounded text-xs" title="Comprar Mais"><i className="fas fa-cart-plus"></i></button>}
                                                                 {hasResellers && stock > 0 && <button onClick={() => { setTransferForm({ ...transferForm, productId: p.id, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1.5 rounded text-xs" title="Transferir para Revendedor"><i className="fas fa-exchange-alt"></i></button>}
-                                                                <button onClick={() => { const productSales = sales.filter(s => s.productId === p.id); const productPurchases = purchases.filter(pur => pur.productId === p.id); alert(`📊 HISTÓRICO DE ${p.name}:\n\n📦 Compras: ${productPurchases.length}\n💰 Vendas: ${productSales.length}\n📍 Stock Atual: ${stock} un.`); }} className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1.5 rounded text-xs" title="Ver Histórico"><i className="fas fa-history"></i></button>
+                                                                <button onClick={() => { const productSales = sales.filter(s => s.productId === p.id); const productPurchases = purchases.filter(pur => pur.productId === p.id); const adjustments = stockAdjustments.filter(a => a.productId === p.id); alert(`📊 HISTÓRICO DE ${p.name}:\n\n📦 Compras: ${productPurchases.length}\n💰 Vendas: ${productSales.length}\n🔧 Ajustes: ${adjustments.length}\n📍 Stock Atual: ${stock} un.`); }} className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1.5 rounded text-xs" title="Ver Histórico"><i className="fas fa-history"></i></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -906,10 +945,14 @@
                                 </div>
                                 <div className="bg-white rounded-lg shadow-md p-4">
                                     <h4 className="font-bold text-gray-700 mb-3"><i className="fas fa-info-circle mr-2 text-purple-600"></i>Ações Disponíveis:</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                                         <div className="flex items-center gap-2">
                                             <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center"><i className="fas fa-edit text-white text-xs"></i></div>
                                             <div><p className="font-medium">Editar</p><p className="text-xs text-gray-500">Modificar produto</p></div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-yellow-500 rounded flex items-center justify-center"><i className="fas fa-sliders-h text-white text-xs"></i></div>
+                                            <div><p className="font-medium">Ajustar</p><p className="text-xs text-gray-500">Corrigir stock</p></div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center"><i className="fas fa-cart-plus text-white text-xs"></i></div>
@@ -1293,6 +1336,86 @@
                     </main>
 
                     {/* MODALS */}
+                    {/* Ajuste de Stock - NOVO */}
+                    <Modal isOpen={showAdjustStockModal} onClose={() => { setShowAdjustStockModal(false); setAdjustStockProduct(null); }} title="Ajustar Stock">
+                        <div className="space-y-4">
+                            {adjustStockProduct && (
+                                <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
+                                    <p className="font-bold">{adjustStockProduct.name}</p>
+                                    <p className="text-sm text-gray-600">Stock atual: {calculateStock(adjustStockProduct.id)} un.</p>
+                                </div>
+                            )}
+                            
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Tipo de Ajuste *</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setAdjustStockForm({...adjustStockForm, type: 'entrada'})}
+                                        className={`p-3 rounded-lg border-2 transition ${adjustStockForm.type === 'entrada' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}
+                                    >
+                                        <i className="fas fa-plus-circle text-green-600 mr-2"></i>
+                                        <span className="font-medium">Entrada (+)</span>
+                                        <p className="text-xs text-gray-500 mt-1">Adicionar ao stock</p>
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setAdjustStockForm({...adjustStockForm, type: 'saida'})}
+                                        className={`p-3 rounded-lg border-2 transition ${adjustStockForm.type === 'saida' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                                    >
+                                        <i className="fas fa-minus-circle text-red-600 mr-2"></i>
+                                        <span className="font-medium">Saída (-)</span>
+                                        <p className="text-xs text-gray-500 mt-1">Remover do stock</p>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Motivo *</label>
+                                <select value={adjustStockForm.reason} onChange={(e) => setAdjustStockForm({...adjustStockForm, reason: e.target.value})} className="w-full border rounded-lg p-3">
+                                    <option value="quebra">Quebra / Dano</option>
+                                    <option value="erro_compra">Erro na Compra</option>
+                                    <option value="perda">Perda / Extravio</option>
+                                    <option value="validade">Produto Vencido</option>
+                                    <option value="inventario">Ajuste de Inventário</option>
+                                    <option value="outro">Outro</option>
+                                </select>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
+                                    <input type="number" value={adjustStockForm.quantity} onChange={(e) => setAdjustStockForm({...adjustStockForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 font-medium mb-2">Data</label>
+                                    <input type="date" value={adjustStockForm.date} onChange={(e) => setAdjustStockForm({...adjustStockForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 font-medium mb-2">Observações</label>
+                                <textarea value={adjustStockForm.notes} onChange={(e) => setAdjustStockForm({...adjustStockForm, notes: e.target.value})} className="w-full border rounded-lg p-3" rows="3" placeholder="Descreva o motivo do ajuste..."></textarea>
+                            </div>
+                            
+                            <div className={`p-4 rounded-lg ${adjustStockForm.type === 'entrada' ? 'bg-green-50 border-l-4 border-green-500' : 'bg-red-50 border-l-4 border-red-500'}`}>
+                                <p className="font-bold">
+                                    {adjustStockForm.type === 'entrada' ? '➕' : '➖'} Stock atual: {calculateStock(adjustStockProduct?.id || '')} un.
+                                </p>
+                                <p className="text-sm">
+                                    {adjustStockForm.type === 'entrada' ? 'Novo stock: ' : 'Novo stock: '}
+                                    <span className="font-bold">
+                                        {adjustStockProduct ? (adjustStockForm.type === 'entrada' ? calculateStock(adjustStockProduct.id) + parseInt(adjustStockForm.quantity || 0) : calculateStock(adjustStockProduct.id) - parseInt(adjustStockForm.quantity || 0)) : 0} un.
+                                    </span>
+                                </p>
+                            </div>
+                            
+                            <button onClick={handleAdjustStock} className={`w-full py-3 rounded-lg transition text-white ${adjustStockForm.type === 'entrada' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                                <i className="fas fa-check mr-2"></i>Confirmar Ajuste
+                            </button>
+                        </div>
+                    </Modal>
+
                     {/* Quick Buy */}
                     <Modal isOpen={showQuickBuyModal} onClose={() => { setShowQuickBuyModal(false); setQuickBuyProduct(null); }} title="Compra Rápida">
                         <div className="space-y-4">
@@ -1684,7 +1807,7 @@
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Filtros Avançados • Edição Stock • {new Date().getFullYear()}</p>
+                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Ajuste de Stock • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
