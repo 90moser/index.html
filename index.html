@@ -35,7 +35,7 @@
         
         .filter-bar { background: linear-gradient(to right, #f8fafc, #f1f5f9); }
         .filter-input { transition: all 0.2s; }
-        .filter-input:focus { ring: 2px; ring-color: #667eea; }
+        .filter-input:focus { outline: 2px solid #667eea; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -118,35 +118,21 @@
         };
 
         // ==================== COMPONENTE: BARRA DE FILTROS ====================
-        const FilterBar = ({ 
-            searchTerm, 
-            onSearchChange, 
-            categoryFilter, 
-            onCategoryChange, 
-            statusFilter, 
-            onStatusChange,
-            sortBy,
-            onSortChange,
-            expiryFilter,
-            onExpiryChange,
-            totalItems,
-            filteredItems,
-            onExport
-        }) => {
+        const FilterBar = ({ searchTerm, onSearchChange, categoryFilter, onCategoryChange, statusFilter, onStatusChange, sortBy, onSortChange, expiryFilter, onExpiryChange, totalItems, filteredItems, onExport }) => {
             const categories = ['todos', 'perfumaria', 'corpo', 'maquiagem', 'cabelo', 'acessorios'];
             const statusOptions = [
-                { value: 'todos', label: 'Todos Status', icon: 'fa-list' },
-                { value: 'ok', label: 'Stock OK', icon: 'fa-check-circle', color: 'text-green-600' },
-                { value: 'low', label: 'Stock Baixo', icon: 'fa-exclamation-triangle', color: 'text-orange-600' },
-                { value: 'out', label: 'Sem Stock', icon: 'fa-times-circle', color: 'text-red-600' }
+                { value: 'todos', label: 'Todos Status' },
+                { value: 'ok', label: 'Stock OK' },
+                { value: 'low', label: 'Stock Baixo' },
+                { value: 'out', label: 'Sem Stock' }
             ];
             const sortOptions = [
-                { value: 'name', label: 'Nome (A-Z)', icon: 'fa-sort-alpha-down' },
-                { value: 'name-desc', label: 'Nome (Z-A)', icon: 'fa-sort-alpha-up' },
-                { value: 'stock', label: 'Stock (Menor)', icon: 'fa-sort-numeric-down' },
-                { value: 'stock-desc', label: 'Stock (Maior)', icon: 'fa-sort-numeric-up' },
-                { value: 'value', label: 'Valor (Maior)', icon: 'fa-euro-sign' },
-                { value: 'expiry', label: 'Validade (Próxima)', icon: 'fa-clock' }
+                { value: 'name', label: 'Nome (A-Z)' },
+                { value: 'name-desc', label: 'Nome (Z-A)' },
+                { value: 'stock', label: 'Stock (Menor)' },
+                { value: 'stock-desc', label: 'Stock (Maior)' },
+                { value: 'value', label: 'Valor (Maior)' },
+                { value: 'expiry', label: 'Validade (Próxima)' }
             ];
             const expiryOptions = [
                 { value: 'all', label: 'Todas Validades' },
@@ -159,54 +145,27 @@
             return (
                 <div className="filter-bar rounded-lg p-4 mb-4 shadow-sm">
                     <div className="flex flex-wrap gap-3 items-center">
-                        {/* Busca */}
                         <div className="flex-1 min-w-[200px]">
                             <div className="relative">
                                 <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                                <input 
-                                    type="text" 
-                                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    placeholder="🔍 Buscar produto por nome..."
-                                    value={searchTerm}
-                                    onChange={(e) => onSearchChange(e.target.value)}
-                                />
+                                <input type="text" className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="🔍 Buscar produto por nome..." value={searchTerm} onChange={(e) => onSearchChange(e.target.value)} />
                             </div>
                         </div>
-
-                        {/* Categoria */}
                         <select value={categoryFilter} onChange={(e) => onCategoryChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            {categories.map(cat => (
-                                <option key={cat} value={cat}>{cat === 'todos' ? '📋 Todas Categorias' : cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
-                            ))}
+                            {categories.map(cat => (<option key={cat} value={cat}>{cat === 'todos' ? '📋 Todas Categorias' : cat.charAt(0).toUpperCase() + cat.slice(1)}</option>))}
                         </select>
-
-                        {/* Status */}
                         <select value={statusFilter} onChange={(e) => onStatusChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            {statusOptions.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
+                            {statusOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                         </select>
-
-                        {/* Validade */}
                         <select value={expiryFilter} onChange={(e) => onExpiryChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            {expiryOptions.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
+                            {expiryOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                         </select>
-
-                        {/* Ordenar */}
                         <select value={sortBy} onChange={(e) => onSortChange(e.target.value)} className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                            {sortOptions.map(opt => (
-                                <option key={opt.value} value={opt.value}><i className={`fas ${opt.icon} mr-1`}></i>{opt.label}</option>
-                            ))}
+                            {sortOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                         </select>
-
-                        {/* Exportar */}
                         <button onClick={onExport} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg transition" title="Exportar CSV">
                             <i className="fas fa-file-csv"></i>
                         </button>
-
-                        {/* Contador */}
                         <div className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow-sm">
                             <i className="fas fa-box mr-2 text-purple-600"></i>
                             <span className="font-bold">{filteredItems}</span> de {totalItems} produtos
@@ -289,15 +248,11 @@
             
             // Filtros
             const [customerSort, setCustomerSort] = useState('default');
-            const [resellerFilter, setResellerFilter] = useState('all');
-            
-            // Filtros de Stock e Produtos
             const [productSearchTerm, setProductSearchTerm] = useState('');
             const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
             const [productStatusFilter, setProductStatusFilter] = useState('todos');
             const [productExpiryFilter, setProductExpiryFilter] = useState('all');
             const [productSortBy, setProductSortBy] = useState('name');
-            
             const [stockSearchTerm, setStockSearchTerm] = useState('');
             const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
             const [stockStatusFilter, setStockStatusFilter] = useState('todos');
@@ -314,7 +269,7 @@
             const [transferForm, setTransferForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
             const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
             const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
-            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
+            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
 
             // Configurações
             const [lowStockThreshold, setLowStockThreshold] = useState(3);
@@ -338,7 +293,6 @@
                 setResellerStock(loadData('resellerStock'));
                 setResellerSales(loadData('resellerSales'));
                 setResellerReturns(loadData('resellerReturns'));
-                
                 const config = localStorage.getItem('boticario_config');
                 if (config) {
                     const cfg = JSON.parse(config);
@@ -391,30 +345,19 @@
                 let filtered = productsList.filter(p => {
                     const stock = calculateStock(p.id);
                     const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
-                    
-                    // Busca por nome
                     if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-                    
-                    // Categoria
                     if (categoryFilter !== 'todos' && p.category !== categoryFilter) return false;
-                    
-                    // Status
                     if (statusFilter === 'ok' && stock >= lowStockThreshold) return true;
                     if (statusFilter === 'low' && stock > 0 && stock < lowStockThreshold) return true;
                     if (statusFilter === 'out' && stock === 0) return true;
                     if (statusFilter !== 'todos' && statusFilter !== 'ok' && statusFilter !== 'low' && statusFilter !== 'out') return false;
                     if (statusFilter === 'todos') return true;
-                    
-                    // Validade
                     if (expiryFilter === 'no-expiry' && !p.expiryDate) return true;
                     if (expiryFilter === 'no-expiry' && p.expiryDate) return false;
                     if (expiryFilter !== 'all' && expiryFilter !== 'no-expiry' && daysToExpiry !== null && daysToExpiry <= parseInt(expiryFilter)) return true;
                     if (expiryFilter !== 'all' && expiryFilter !== 'no-expiry' && (daysToExpiry === null || daysToExpiry > parseInt(expiryFilter))) return false;
-                    
                     return true;
                 });
-
-                // Ordenação
                 filtered.sort((a, b) => {
                     const stockA = calculateStock(a.id);
                     const stockB = calculateStock(b.id);
@@ -422,7 +365,6 @@
                     const valueB = stockB * (parseFloat(b.catalogPrice) || 0);
                     const expiryA = a.expiryDate ? calculateDaysUntilExpiry(a.expiryDate) : 9999;
                     const expiryB = b.expiryDate ? calculateDaysUntilExpiry(b.expiryDate) : 9999;
-                    
                     switch(sortBy) {
                         case 'name': return a.name.localeCompare(b.name);
                         case 'name-desc': return b.name.localeCompare(a.name);
@@ -433,25 +375,16 @@
                         default: return 0;
                     }
                 });
-
                 return filtered;
             };
 
-            const filteredProducts = useMemo(() => 
-                filterAndSortProducts(products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy),
-                [products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy]
-            );
-
-            const filteredStock = useMemo(() => 
-                filterAndSortProducts(products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy),
-                [products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy]
-            );
+            const filteredProducts = useMemo(() => filterAndSortProducts(products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy), [products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy]);
+            const filteredStock = useMemo(() => filterAndSortProducts(products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy), [products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy]);
 
             // ==================== ALERTAS ====================
             const lowStockProducts = useMemo(() => products.filter(p => calculateStock(p.id) < lowStockThreshold), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, lowStockThreshold]);
             const expiryAlertProducts = useMemo(() => products.filter(p => p.expiryDate && calculateDaysUntilExpiry(p.expiryDate) <= expiryAlertDays), [products, expiryAlertDays]);
             const pendingCreditSales = useMemo(() => creditSales.filter(c => c.status === 'pendente'), [creditSales]);
-            
             const staleResellerProducts = useMemo(() => {
                 return resellerStock.filter(t => calculateDaysSince(t.date) >= staleProductDays).map(t => {
                     const reseller = resellers.find(r => r.id === t.resellerId);
@@ -689,7 +622,6 @@
 
             const markCreditAsPaid = (creditId) => { setCreditSales(creditSales.map(c => c.id === creditId ? { ...c, status: 'pago' } : c)); };
 
-            // ==================== EXPORTAR ====================
             const exportData = () => {
                 const data = { exportDate: new Date().toISOString(), version: '2.1', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -701,7 +633,6 @@
                 URL.revokeObjectURL(url);
             };
 
-            // NOVO: Exportar lista de produtos para CSV
             const exportProductsCSV = (productsList, filename) => {
                 const headers = ['Nome', 'Categoria', 'Preço Catálogo', 'Stock', 'Preço Custo', 'Valor Stock', 'Validade', 'Status'];
                 const rows = productsList.map(p => {
@@ -712,19 +643,8 @@
                     let status = 'OK';
                     if (stock === 0) status = 'Sem Stock';
                     else if (stock < lowStockThreshold) status = 'Baixo';
-                    
-                    return [
-                        p.name,
-                        p.category,
-                        parseFloat(p.catalogPrice) || 0,
-                        stock,
-                        avgPrice,
-                        value,
-                        p.expiryDate ? formatDate(p.expiryDate) : 'N/A',
-                        status
-                    ].map(cell => `"${cell}"`).join(',');
+                    return [p.name, p.category, parseFloat(p.catalogPrice) || 0, stock, avgPrice, value, p.expiryDate ? formatDate(p.expiryDate) : 'N/A', status].map(cell => `"${cell}"`).join(',');
                 });
-                
                 const csv = [headers.join(','), ...rows].join('\n');
                 const blob = new Blob([csv], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
@@ -770,7 +690,6 @@
             const customerOptions = useMemo(() => customers.map(c => ({ value: c.id, label: c.name, phone: c.phone || '' })), [customers]);
             const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
 
-            // NOVO: Abrir modal de compra rápida
             const openQuickBuy = (product) => {
                 setQuickBuyProduct(product);
                 setQuickBuyForm({ quantity: 5, price: calculateAveragePrice(product.id), date: new Date().toISOString().split('T')[0] });
@@ -779,13 +698,7 @@
 
             const handleQuickBuy = () => {
                 if (!quickBuyProduct || quickBuyForm.quantity <= 0 || quickBuyForm.price <= 0) { alert('Dados inválidos!'); return; }
-                const newPurchase = { 
-                    id: generateId(), 
-                    productId: quickBuyProduct.id, 
-                    quantity: parseInt(quickBuyForm.quantity), 
-                    price: parseFloat(quickBuyForm.price),
-                    date: quickBuyForm.date || new Date().toISOString().split('T')[0]
-                };
+                const newPurchase = { id: generateId(), productId: quickBuyProduct.id, quantity: parseInt(quickBuyForm.quantity), price: parseFloat(quickBuyForm.price), date: quickBuyForm.date || new Date().toISOString().split('T')[0] };
                 setPurchases([...purchases, newPurchase]);
                 setQuickBuyProduct(null);
                 setQuickBuyForm({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
@@ -854,21 +767,18 @@
                                     <StatCard title="Lucro Líquido" value={formatCurrency(financialReport.totalProfit)} icon="fa-coins" color="border-blue-400" />
                                     <StatCard title="Revendedores Ativos" value={resellers.filter(r => r.status === 'ativo').length} icon="fa-handshake" color="border-purple-400" />
                                 </div>
-
                                 {resellers.length > 0 && (
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <StatCard title="💰 Vendas Revendedores (Mês)" value={formatCurrency(resellerSales.filter(s => new Date(s.date) >= getMonthRange().start).reduce((sum, s) => sum + s.totalSale, 0))} icon="fa-store" color="border-green-400" />
                                         <StatCard title="📦 Produtos em Comodato" value={resellerStock.filter(t => calculateResellerStock(t.resellerId, t.productId) > 0).length} icon="fa-boxes" color="border-purple-400" />
-                                        <StatCard title="💵 A Receber de Revendedores" value={formatCurrency(resellerSales.reduce((sum, s) => sum + s.yourEarnings, 0) - resellerSales.filter(s => s.paid).reduce((sum, s) => sum + s.yourEarnings, 0))} icon="fa-euro-sign" color="border-yellow-400" />
+                                        <StatCard title="💵 A Receber" value={formatCurrency(resellerSales.reduce((sum, s) => sum + s.yourEarnings, 0))} icon="fa-euro-sign" color="border-yellow-400" />
                                     </div>
                                 )}
-
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <StatCard title="📦 Estoque (Preço Pago)" value={formatCurrency(stockValueReport.totalPaidValue)} icon="fa-boxes" color="border-purple-400" smallText="Quanto você investiu" />
+                                    <StatCard title="📦 Estoque (Preço Pago)" value={formatCurrency(stockValueReport.totalPaidValue)} icon="fa-boxes" color="border-purple-400" smallText="Quanto investiu" />
                                     <StatCard title="💰 Estoque (Preço Venda)" value={formatCurrency(stockValueReport.totalSaleValue)} icon="fa-tag" color="border-green-400" smallText="Preço catálogo" />
                                     <StatCard title="🎯 Lucro Potencial" value={formatCurrency(stockValueReport.potentialProfit)} icon="fa-chart-line" color={stockValueReport.potentialProfit >= 0 ? "border-green-400" : "border-red-400"} smallText={`Margem: ${stockValueReport.profitMargin.toFixed(1)}%`} />
                                 </div>
-
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                     {lowStockProducts.length > 0 && (
                                         <div className="alert-red rounded-lg p-4">
@@ -889,7 +799,6 @@
                                         </div>
                                     )}
                                 </div>
-
                                 {resellers.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-md p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-trophy text-yellow-500 mr-2"></i>Top Revendedores</h3>
@@ -915,7 +824,7 @@
                             </div>
                         )}
 
-                        {/* STOCK - COM FILTROS AVANÇADOS */}
+                        {/* STOCK - COM EDIÇÃO */}
                         {activeTab === 'stock' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
@@ -925,24 +834,7 @@
                                         <span className="text-sm text-gray-600 bg-white px-3 py-2 rounded-lg shadow"><i className="fas fa-exclamation-triangle mr-2 text-red-500"></i>{lowStockProducts.length} críticos</span>
                                     </div>
                                 </div>
-
-                                {/* BARRA DE FILTROS */}
-                                <FilterBar 
-                                    searchTerm={stockSearchTerm}
-                                    onSearchChange={setStockSearchTerm}
-                                    categoryFilter={stockCategoryFilter}
-                                    onCategoryChange={setStockCategoryFilter}
-                                    statusFilter={stockStatusFilter}
-                                    onStatusChange={setStockStatusFilter}
-                                    sortBy={stockSortBy}
-                                    onSortChange={setStockSortBy}
-                                    expiryFilter={stockExpiryFilter}
-                                    onExpiryChange={setStockExpiryFilter}
-                                    totalItems={products.length}
-                                    filteredItems={filteredStock.length}
-                                    onExport={() => exportProductsCSV(filteredStock, `stock_boticario_${new Date().toISOString().split('T')[0]}.csv`)}
-                                />
-
+                                <FilterBar searchTerm={stockSearchTerm} onSearchChange={setStockSearchTerm} categoryFilter={stockCategoryFilter} onCategoryChange={setStockCategoryFilter} statusFilter={stockStatusFilter} onStatusChange={setStockStatusFilter} sortBy={stockSortBy} onSortChange={setStockSortBy} expiryFilter={stockExpiryFilter} onExpiryChange={setStockExpiryFilter} totalItems={products.length} filteredItems={filteredStock.length} onExport={() => exportProductsCSV(filteredStock, `stock_boticario_${new Date().toISOString().split('T')[0]}.csv`)} />
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
                                         <p className="text-purple-100 text-sm">Valor Pago em Stock</p>
@@ -957,9 +849,8 @@
                                         <p className="text-2xl font-bold">{formatCurrency(stockValueReport.potentialProfit)}</p>
                                     </div>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-                                    <table className="w-full min-w-[900px]">
+                                    <table className="w-full min-w-[1100px]">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="p-4 text-left">Produto</th>
@@ -979,6 +870,7 @@
                                                 const avgPrice = calculateAveragePrice(p.id);
                                                 const value = stock * (parseFloat(p.catalogPrice) || 0);
                                                 const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
+                                                const hasResellers = resellers.length > 0;
                                                 return (
                                                     <tr key={p.id} className={`border-t ${stock < lowStockThreshold ? 'bg-red-50' : stock < lowStockThreshold * 2 ? 'bg-yellow-50' : ''}`}>
                                                         <td className="p-4 font-medium">{p.name}</td>
@@ -992,15 +884,11 @@
                                                         <td className="p-4 font-medium">{formatCurrency(value)}</td>
                                                         <td className="p-4">{p.expiryDate ? <span className={daysToExpiry <= expiryAlertDays ? 'text-red-600 font-bold' : 'text-gray-600'}>{formatDate(p.expiryDate)}{daysToExpiry && daysToExpiry <= expiryAlertDays && <span className="block text-xs">({daysToExpiry} dias)</span>}</span> : '-'}</td>
                                                         <td className="p-4 text-center">
-                                                            <div className="flex justify-center gap-2">
-                                                                {stock < lowStockThreshold && (
-                                                                    <button onClick={() => openQuickBuy(p)} className="btn-buy text-white px-2 py-1 rounded text-xs" title="Comprar Mais">
-                                                                        <i className="fas fa-cart-plus"></i>
-                                                                    </button>
-                                                                )}
-                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar">
-                                                                    <i className="fas fa-edit"></i>
-                                                                </button>
+                                                            <div className="flex justify-center gap-1 flex-wrap">
+                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-2 py-1.5 rounded text-xs" title="Editar Produto"><i className="fas fa-edit"></i></button>
+                                                                {stock < lowStockThreshold && <button onClick={() => openQuickBuy(p)} className="btn-buy text-white px-2 py-1.5 rounded text-xs" title="Comprar Mais"><i className="fas fa-cart-plus"></i></button>}
+                                                                {hasResellers && stock > 0 && <button onClick={() => { setTransferForm({ ...transferForm, productId: p.id, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1.5 rounded text-xs" title="Transferir para Revendedor"><i className="fas fa-exchange-alt"></i></button>}
+                                                                <button onClick={() => { const productSales = sales.filter(s => s.productId === p.id); const productPurchases = purchases.filter(pur => pur.productId === p.id); alert(`📊 HISTÓRICO DE ${p.name}:\n\n📦 Compras: ${productPurchases.length}\n💰 Vendas: ${productSales.length}\n📍 Stock Atual: ${stock} un.`); }} className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1.5 rounded text-xs" title="Ver Histórico"><i className="fas fa-history"></i></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1012,16 +900,35 @@
                                         <div className="p-8 text-center text-gray-500">
                                             <i className="fas fa-search text-4xl mb-3"></i>
                                             <p>Nenhum produto encontrado com estes filtros</p>
-                                            <button onClick={() => { setStockSearchTerm(''); setStockCategoryFilter('todos'); setStockStatusFilter('todos'); setStockExpiryFilter('all'); setStockSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">
-                                                Limpar filtros
-                                            </button>
+                                            <button onClick={() => { setStockSearchTerm(''); setStockCategoryFilter('todos'); setStockStatusFilter('todos'); setStockExpiryFilter('all'); setStockSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">Limpar filtros</button>
                                         </div>
                                     )}
+                                </div>
+                                <div className="bg-white rounded-lg shadow-md p-4">
+                                    <h4 className="font-bold text-gray-700 mb-3"><i className="fas fa-info-circle mr-2 text-purple-600"></i>Ações Disponíveis:</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center"><i className="fas fa-edit text-white text-xs"></i></div>
+                                            <div><p className="font-medium">Editar</p><p className="text-xs text-gray-500">Modificar produto</p></div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center"><i className="fas fa-cart-plus text-white text-xs"></i></div>
+                                            <div><p className="font-medium">Comprar</p><p className="text-xs text-gray-500">Repor stock</p></div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-purple-600 rounded flex items-center justify-center"><i className="fas fa-exchange-alt text-white text-xs"></i></div>
+                                            <div><p className="font-medium">Transferir</p><p className="text-xs text-gray-500">Para revendedor</p></div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 bg-gray-600 rounded flex items-center justify-center"><i className="fas fa-history text-white text-xs"></i></div>
+                                            <div><p className="font-medium">Histórico</p><p className="text-xs text-gray-500">Ver movimentações</p></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* PRODUTOS - COM FILTROS AVANÇADOS */}
+                        {/* PRODUTOS */}
                         {activeTab === 'products' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
@@ -1030,24 +937,7 @@
                                         <i className="fas fa-plus mr-2"></i>Novo Produto
                                     </button>
                                 </div>
-
-                                {/* BARRA DE FILTROS */}
-                                <FilterBar 
-                                    searchTerm={productSearchTerm}
-                                    onSearchChange={setProductSearchTerm}
-                                    categoryFilter={productCategoryFilter}
-                                    onCategoryChange={setProductCategoryFilter}
-                                    statusFilter={productStatusFilter}
-                                    onStatusChange={setProductStatusFilter}
-                                    sortBy={productSortBy}
-                                    onSortChange={setProductSortBy}
-                                    expiryFilter={productExpiryFilter}
-                                    onExpiryChange={setProductExpiryFilter}
-                                    totalItems={products.length}
-                                    filteredItems={filteredProducts.length}
-                                    onExport={() => exportProductsCSV(filteredProducts, `produtos_boticario_${new Date().toISOString().split('T')[0]}.csv`)}
-                                />
-
+                                <FilterBar searchTerm={productSearchTerm} onSearchChange={setProductSearchTerm} categoryFilter={productCategoryFilter} onCategoryChange={setProductCategoryFilter} statusFilter={productStatusFilter} onStatusChange={setProductStatusFilter} sortBy={productSortBy} onSortChange={setProductSortBy} expiryFilter={productExpiryFilter} onExpiryChange={setProductExpiryFilter} totalItems={products.length} filteredItems={filteredProducts.length} onExport={() => exportProductsCSV(filteredProducts, `produtos_boticario_${new Date().toISOString().split('T')[0]}.csv`)} />
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
                                     <table className="w-full min-w-[1000px]">
                                         <thead className="bg-gray-50">
@@ -1077,8 +967,8 @@
                                                         <td className="p-4 text-center"><span className={`font-bold ${stock < lowStockThreshold ? 'text-red-600' : 'text-green-600'}`}>{stock} un.</span></td>
                                                         <td className="p-4 text-center">
                                                             <div className="flex justify-center gap-2">
-                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm" title="Editar"><i className="fas fa-edit"></i></button>
-                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm" title="Excluir"><i className="fas fa-trash"></i></button>
+                                                                <button onClick={() => openEditProduct(p)} className="btn-edit text-white px-3 py-1 rounded text-sm"><i className="fas fa-edit"></i></button>
+                                                                <button onClick={() => confirmDeleteProduct(p)} className="btn-delete text-white px-3 py-1 rounded text-sm"><i className="fas fa-trash"></i></button>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1089,10 +979,8 @@
                                     {filteredProducts.length === 0 && (
                                         <div className="p-8 text-center text-gray-500">
                                             <i className="fas fa-search text-4xl mb-3"></i>
-                                            <p>Nenhum produto encontrado com estes filtros</p>
-                                            <button onClick={() => { setProductSearchTerm(''); setProductCategoryFilter('todos'); setProductStatusFilter('todos'); setProductExpiryFilter('all'); setProductSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">
-                                                Limpar filtros
-                                            </button>
+                                            <p>Nenhum produto encontrado</p>
+                                            <button onClick={() => { setProductSearchTerm(''); setProductCategoryFilter('todos'); setProductStatusFilter('todos'); setProductExpiryFilter('all'); setProductSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">Limpar filtros</button>
                                         </div>
                                     )}
                                 </div>
@@ -1108,7 +996,6 @@
                                         <i className="fas fa-plus mr-2"></i>Novo Revendedor
                                     </button>
                                 </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
                                         <p className="text-purple-100 text-sm">Total Revendedores</p>
@@ -1127,15 +1014,12 @@
                                         <p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.commission, 0))}</p>
                                     </div>
                                 </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {resellerReport.map(r => (
                                         <div key={r.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
                                             <div className="flex items-start justify-between mb-3">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                                        <i className="fas fa-store text-purple-600 text-xl"></i>
-                                                    </div>
+                                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center"><i className="fas fa-store text-purple-600 text-xl"></i></div>
                                                     <div>
                                                         <h3 className="font-bold">{r.salonName}</h3>
                                                         <p className="text-gray-500 text-sm">{r.name}</p>
@@ -1143,7 +1027,7 @@
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-1">
-                                                    <button onClick={() => { setSelectedReseller(r); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs" title="Transferir Stock"><i className="fas fa-exchange-alt"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(null); setTransferForm({ ...transferForm, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs" title="Transferir Stock"><i className="fas fa-exchange-alt"></i></button>
                                                     <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Registrar Venda"><i className="fas fa-shopping-cart"></i></button>
                                                     <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs" title="Devolver Produtos"><i className="fas fa-undo"></i></button>
                                                     <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar"><i className="fas fa-edit"></i></button>
@@ -1170,7 +1054,6 @@
                                         <p>Nenhum revendedor cadastrado</p>
                                     </div>
                                 )}
-
                                 {resellers.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-md p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-boxes mr-2"></i>Stock em Revendedores</h3>
@@ -1221,7 +1104,6 @@
                                         <i className="fas fa-plus mr-2"></i>Nova Venda
                                     </button>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
                                     <table className="w-full min-w-[1000px]">
                                         <thead className="bg-gray-50">
@@ -1273,7 +1155,6 @@
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Gestão de Compras</h2>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow-md p-4">
                                     <h3 className="text-lg font-bold mb-4">Registrar Entrada de Mercadoria</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
@@ -1298,7 +1179,6 @@
                                         <i className="fas fa-user-plus mr-2"></i>Novo Cliente
                                     </button>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow-md p-4">
                                     <div className="flex items-center gap-3 flex-wrap">
                                         <span className="text-gray-700 font-medium"><i className="fas fa-filter mr-2"></i>Ordenar por:</span>
@@ -1307,7 +1187,6 @@
                                         <button onClick={() => setCustomerSort('purchases')} className={`px-4 py-2 rounded-lg transition text-sm ${customerSort === 'purchases' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Mais Compras</button>
                                     </div>
                                 </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {customersWithStats.sort((a, b) => customerSort === 'spent' ? b.totalSpent - a.totalSpent : customerSort === 'purchases' ? b.totalPurchases - a.totalPurchases : 0).map(c => (
                                         <div key={c.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
@@ -1349,7 +1228,6 @@
                                         <p className="text-2xl font-bold">{formatCurrency(financialReport.totalProfit)}</p>
                                     </div>
                                 </div>
-
                                 {resellers.length > 0 && (
                                     <div className="bg-white rounded-lg shadow-md p-6">
                                         <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-handshake mr-2"></i>Relatório de Revendedores</h3>
@@ -1415,7 +1293,7 @@
                     </main>
 
                     {/* MODALS */}
-                    {/* Quick Buy Modal */}
+                    {/* Quick Buy */}
                     <Modal isOpen={showQuickBuyModal} onClose={() => { setShowQuickBuyModal(false); setQuickBuyProduct(null); }} title="Compra Rápida">
                         <div className="space-y-4">
                             {quickBuyProduct && (
@@ -1447,8 +1325,7 @@
                         </div>
                     </Modal>
 
-                    {/* Outros Modals (Produto, Venda, Cliente, Revendedor, etc.) */}
-                    {/* Modal Novo Produto */}
+                    {/* Novo Produto */}
                     <Modal isOpen={showProductModal} onClose={() => setShowProductModal(false)} title="Novo Produto">
                         <div className="space-y-4">
                             <div>
@@ -1489,7 +1366,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Editar Produto */}
+                    {/* Editar Produto */}
                     <Modal isOpen={showEditProductModal} onClose={() => { setShowEditProductModal(false); setEditingProduct(null); }} title="Editar Produto">
                         <div className="space-y-4">
                             <div>
@@ -1520,7 +1397,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Nova Venda */}
+                    {/* Nova Venda */}
                     <Modal isOpen={showSaleModal} onClose={() => setShowSaleModal(false)} title="Nova Venda">
                         <div className="space-y-4">
                             <SearchableDropdown label="Produto *" options={productOptions} value={saleForm.productId} onChange={(value) => setSaleForm({...saleForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
@@ -1553,7 +1430,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Editar Venda */}
+                    {/* Editar Venda */}
                     <Modal isOpen={showEditSaleModal} onClose={() => { setShowEditSaleModal(false); setEditingSale(null); }} title="Editar Venda">
                         <div className="space-y-4">
                             <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
@@ -1589,7 +1466,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Novo Cliente */}
+                    {/* Novo Cliente */}
                     <Modal isOpen={showCustomerModal} onClose={() => setShowCustomerModal(false)} title="Novo Cliente">
                         <div className="space-y-4">
                             <div>
@@ -1608,7 +1485,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Editar Cliente */}
+                    {/* Editar Cliente */}
                     <Modal isOpen={showEditCustomerModal} onClose={() => { setShowEditCustomerModal(false); setEditingCustomer(null); }} title="Editar Cliente">
                         <div className="space-y-4">
                             <div>
@@ -1627,7 +1504,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Revendedor */}
+                    {/* Novo Revendedor */}
                     <Modal isOpen={showResellerModal} onClose={() => setShowResellerModal(false)} title="Novo Revendedor">
                         <div className="space-y-4">
                             <div>
@@ -1660,7 +1537,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Editar Revendedor */}
+                    {/* Editar Revendedor */}
                     <Modal isOpen={showEditResellerModal} onClose={() => { setShowEditResellerModal(false); setEditingReseller(null); }} title="Editar Revendedor">
                         <div className="space-y-4">
                             <div>
@@ -1693,16 +1570,25 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Transferir */}
+                    {/* Transferir */}
                     <Modal isOpen={showTransferModal} onClose={() => { setShowTransferModal(false); setSelectedReseller(null); }} title="Transferir Produtos para Revendedor">
                         <div className="space-y-4">
                             {selectedReseller && (
-                                <div className="p-3 bg-purple-50 rounded-lg">
+                                <div className="p-3 bg-purple-50 rounded-lg border-l-4 border-purple-500">
                                     <p className="font-bold">{selectedReseller.salonName}</p>
                                     <p className="text-sm text-gray-600">{selectedReseller.name}</p>
                                 </div>
                             )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={transferForm.productId} onChange={(value) => setTransferForm({...transferForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
+                            {transferForm.productId && (
+                                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
+                                    <p className="font-bold">{products.find(p => p.id === transferForm.productId)?.name}</p>
+                                    <p className="text-sm text-gray-600">Stock disponível: {calculateStock(transferForm.productId)} un.</p>
+                                </div>
+                            )}
+                            {!transferForm.productId && (
+                                <SearchableDropdown label="Produto *" options={productOptions} value={transferForm.productId} onChange={(value) => setTransferForm({...transferForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
+                            )}
+                            <SearchableDropdown label="Revendedor *" options={resellerOptions} value={transferForm.resellerId} onChange={(value) => setTransferForm({...transferForm, resellerId: value})} placeholder="Selecione o revendedor" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">{option.salon}</div></div>)} />
                             <div>
                                 <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
                                 <input type="number" value={transferForm.quantity} onChange={(e) => setTransferForm({...transferForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
@@ -1711,11 +1597,18 @@
                                 <label className="block text-gray-700 font-medium mb-2">Data da Transferência</label>
                                 <input type="date" value={transferForm.date} onChange={(e) => setTransferForm({...transferForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleTransfer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-exchange-alt mr-2"></i>Transferir</button>
+                            <div className="flex gap-3">
+                                <button onClick={() => { setShowTransferModal(false); setSelectedReseller(null); setTransferForm({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] }); }} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg transition">
+                                    <i className="fas fa-times mr-2"></i>Cancelar
+                                </button>
+                                <button onClick={handleTransfer} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition">
+                                    <i className="fas fa-exchange-alt mr-2"></i>Transferir
+                                </button>
+                            </div>
                         </div>
                     </Modal>
 
-                    {/* Modal Venda Revendedor */}
+                    {/* Venda Revendedor */}
                     <Modal isOpen={showResellerSaleModal} onClose={() => { setShowResellerSaleModal(false); setSelectedReseller(null); }} title="Registrar Venda do Revendedor">
                         <div className="space-y-4">
                             {selectedReseller && (
@@ -1750,7 +1643,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Devolução */}
+                    {/* Devolução */}
                     <Modal isOpen={showReturnModal} onClose={() => { setShowReturnModal(false); setSelectedReseller(null); }} title="Devolver Produtos do Revendedor">
                         <div className="space-y-4">
                             {selectedReseller && (
@@ -1772,7 +1665,7 @@
                         </div>
                     </Modal>
 
-                    {/* Modal Confirmar Exclusão */}
+                    {/* Confirmar Exclusão */}
                     <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setDeleteItem(null); }} title="Confirmar Exclusão">
                         <div className="space-y-4">
                             <div className="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
@@ -1791,7 +1684,7 @@
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Filtros Avançados • Exportação CSV • {new Date().getFullYear()}</p>
+                            <p className="text-gray-500 text-sm mt-2">Moeda: Euro (€) • Filtros Avançados • Edição Stock • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
