@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão Revenda O Boticário</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -46,26 +43,6 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
-
-        // ==================== FIREBASE CONFIG ====================
-        const firebaseConfig = {
-            apiKey: "AIzaSyAcmTsh5bvRIQip3CeBZ7-JIQB7fGLafYE",
-            authDomain: "gestao-boticario-1e9e5.firebaseapp.com",
-            projectId: "gestao-boticario-1e9e5",
-            storageBucket: "gestao-boticario-1e9e5.firebasestorage.app",
-            messagingSenderId: "1015728003263",
-            appId: "1:1015728003263:web:bcf005fb164b40f60e4e0a"
-        };
-
-        let db = null;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-            console.log('✅ Firebase conectado!');
-        } catch (error) {
-            console.error('❌ Erro Firebase:', error);
-        }
-        // ==================== FIM FIREBASE ====================
 
         // ==================== UTILITÁRIOS ====================
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -224,36 +201,7 @@
             const [resellerSales, setResellerSales] = useState([]);
             const [resellerReturns, setResellerReturns] = useState([]);
             const [stockAdjustments, setStockAdjustments] = useState([]);
-            // ==================== CONFIGURAÇÕES ====================
-const [lowStockThreshold, setLowStockThreshold] = useState(3);
-const [expiryAlertDays, setExpiryAlertDays] = useState(30);
-const [staleProductDays, setStaleProductDays] = useState(30);
-
-// ==================== FILTROS DE PRODUTOS ====================
-const [productSearchTerm, setProductSearchTerm] = useState('');
-const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
-const [productStatusFilter, setProductStatusFilter] = useState('todos');
-const [productExpiryFilter, setProductExpiryFilter] = useState('all');
-const [productSortBy, setProductSortBy] = useState('name');
-
-// ==================== FILTROS DE STOCK ====================
-const [stockSearchTerm, setStockSearchTerm] = useState('');
-const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
-const [stockStatusFilter, setStockStatusFilter] = useState('todos');
-const [stockExpiryFilter, setStockExpiryFilter] = useState('all');
-const [stockSortBy, setStockSortBy] = useState('name');
-
-// ==================== FILTROS DE HISTÓRICO ====================
-const [purchaseHistorySearch, setPurchaseHistorySearch] = useState('');
-const [purchaseHistoryDateFrom, setPurchaseHistoryDateFrom] = useState('');
-const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
-            // Estados Firebase
-            const [firebaseConnected, setFirebaseConnected] = useState(false);
-            const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
-            const [syncStatus, setSyncStatus] = useState('idle');
-            const [lastSyncTime, setLastSyncTime] = useState(null);
-            const [isLoading, setIsLoading] = useState(true);
-
+            
             // Backup Automático
             const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
             const backupIntervalRef = useRef(null);
@@ -262,7 +210,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                 if (!autoBackupEnabled) return;
                 const data = {
                     exportDate: new Date().toISOString(),
-                    version: '4.0-firebase',
+                    version: '3.0',
                     products, purchases, sales, customers, creditSales,
                     resellers, resellerStock, resellerSales, resellerReturns,
                     stockAdjustments,
@@ -284,61 +232,72 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                 }
             }, [autoBackupEnabled, products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
 
-            // ==================== FIREBASE: SALVAR DADOS ====================
-            const saveToFirebase = async (data) => {
-                if (!db || !cloudSyncEnabled) return;
-                try {
-                    setSyncStatus('syncing');
-                    await db.collection('backup').doc('main').set({
-                        data,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    setSyncStatus('synced');
-                    setLastSyncTime(new Date());
-                } catch (error) {
-                    setSyncStatus('error');
-                    console.error('Erro ao salvar:', error);
-                }
-            };
+            // Estados de Modal
+            const [showProductModal, setShowProductModal] = useState(false);
+            const [showEditProductModal, setShowEditProductModal] = useState(false);
+            const [showSaleModal, setShowSaleModal] = useState(false);
+            const [showEditSaleModal, setShowEditSaleModal] = useState(false);
+            const [showCustomerModal, setShowCustomerModal] = useState(false);
+            const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
+            const [showCreditModal, setShowCreditModal] = useState(false);
+            const [showDeleteModal, setShowDeleteModal] = useState(false);
+            const [showResellerModal, setShowResellerModal] = useState(false);
+            const [showEditResellerModal, setShowEditResellerModal] = useState(false);
+            const [showTransferModal, setShowTransferModal] = useState(false);
+            const [showResellerSaleModal, setShowResellerSaleModal] = useState(false);
+            const [showReturnModal, setShowReturnModal] = useState(false);
+            const [showQuickBuyModal, setShowQuickBuyModal] = useState(false);
+            const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
+            const [showPurchaseHistoryModal, setShowPurchaseHistoryModal] = useState(false);
+            
+            // Estados para Edição
+            const [editingProduct, setEditingProduct] = useState(null);
+            const [editingSale, setEditingSale] = useState(null);
+            const [editingCustomer, setEditingCustomer] = useState(null);
+            const [editingReseller, setEditingReseller] = useState(null);
+            const [deleteItem, setDeleteItem] = useState(null);
+            const [selectedReseller, setSelectedReseller] = useState(null);
+            const [quickBuyProduct, setQuickBuyProduct] = useState(null);
+            const [adjustStockProduct, setAdjustStockProduct] = useState(null);
+            
+            // Filtros
+            const [customerSort, setCustomerSort] = useState('default');
+            const [productSearchTerm, setProductSearchTerm] = useState('');
+            const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
+            const [productStatusFilter, setProductStatusFilter] = useState('todos');
+            const [productExpiryFilter, setProductExpiryFilter] = useState('all');
+            const [productSortBy, setProductSortBy] = useState('name');
+            const [stockSearchTerm, setStockSearchTerm] = useState('');
+            const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
+            const [stockStatusFilter, setStockStatusFilter] = useState('todos');
+            const [stockExpiryFilter, setStockExpiryFilter] = useState('all');
+            const [stockSortBy, setStockSortBy] = useState('name');
+            const [purchaseHistorySearch, setPurchaseHistorySearch] = useState('');
+            const [purchaseHistoryDateFrom, setPurchaseHistoryDateFrom] = useState('');
+            const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
 
-            // ==================== FIREBASE: CARREGAR DADOS ====================
-            const loadFromFirebase = async () => {
-                if (!db) return;
-                try {
-                    setSyncStatus('syncing');
-                    const doc = await db.collection('backup').doc('main').get();
-                    if (doc.exists) {
-                        const backup = doc.data();
-                        if (backup.data) {
-                            const data = backup.data;
-                            if (data.products) setProducts(data.products);
-                            if (data.purchases) setPurchases(data.purchases);
-                            if (data.sales) setSales(data.sales);
-                            if (data.customers) setCustomers(data.customers);
-                            if (data.creditSales) setCreditSales(data.creditSales);
-                            if (data.resellers) setResellers(data.resellers);
-                            if (data.resellerStock) setResellerStock(data.resellerStock);
-                            if (data.resellerSales) setResellerSales(data.resellerSales);
-                            if (data.resellerReturns) setResellerReturns(data.resellerReturns);
-                            if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
-                            if (data.config) {
-                                setLowStockThreshold(data.config.lowStockThreshold || 3);
-                                setExpiryAlertDays(data.config.expiryAlertDays || 30);
-                                setStaleProductDays(data.config.staleProductDays || 30);
-                            }
-                        }
-                    }
-                    setSyncStatus('synced');
-                } catch (error) {
-                    setSyncStatus('error');
-                    console.error('Erro ao carregar:', error);
-                }
-            };
+            // Formulários
+            const [productForm, setProductForm] = useState({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
+            const [purchaseForm, setPurchaseForm] = useState({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
+            const [saleForm, setSaleForm] = useState({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
+            const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
+            const [creditForm, setCreditForm] = useState({ saleId: '', amount: 0, dueDate: '', status: 'pendente' });
+            const [resellerForm, setResellerForm] = useState({ name: '', salonName: '', address: '', phone: '', email: '', commissionRate: 25 });
+            const [transferForm, setTransferForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+            const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
+            const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
+            const [adjustStockForm, setAdjustStockForm] = useState({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
+
+            // Configurações
+            const [lowStockThreshold, setLowStockThreshold] = useState(3);
+            const [expiryAlertDays, setExpiryAlertDays] = useState(30);
+            const [staleProductDays, setStaleProductDays] = useState(30);
+            
+            const fileInputRef = useRef(null);
 
             // ==================== PERSISTÊNCIA ====================
             useEffect(() => {
-                if (db) setFirebaseConnected(true);
-                
                 const loadData = (key) => {
                     const data = localStorage.getItem(`boticario_${key}`);
                     return data ? JSON.parse(data) : [];
@@ -360,12 +319,9 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                     setExpiryAlertDays(cfg.expiryAlertDays || 30);
                     setStaleProductDays(cfg.staleProductDays || 30);
                 }
-                setIsLoading(false);
             }, []);
 
             useEffect(() => {
-                if (isLoading) return;
-                
                 localStorage.setItem('boticario_products', JSON.stringify(products));
                 localStorage.setItem('boticario_purchases', JSON.stringify(purchases));
                 localStorage.setItem('boticario_sales', JSON.stringify(sales));
@@ -377,11 +333,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                 localStorage.setItem('boticario_resellerReturns', JSON.stringify(resellerReturns));
                 localStorage.setItem('boticario_stockAdjustments', JSON.stringify(stockAdjustments));
                 localStorage.setItem('boticario_config', JSON.stringify({ lowStockThreshold, expiryAlertDays, staleProductDays }));
-                
-                if (cloudSyncEnabled && db) {
-                    saveToFirebase({ products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } });
-                }
-            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, lowStockThreshold, expiryAlertDays, staleProductDays, cloudSyncEnabled, isLoading]);
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, lowStockThreshold, expiryAlertDays, staleProductDays]);
 
             // ==================== CÁLCULOS ====================
             const calculateAveragePrice = (productId) => {
@@ -524,64 +476,6 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                 return filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
             }, [purchases, products, purchaseHistorySearch, purchaseHistoryDateFrom, purchaseHistoryDateTo]);
 
-            // ==================== ESTADOS DE MODAL ====================
-            const [showProductModal, setShowProductModal] = useState(false);
-            const [showEditProductModal, setShowEditProductModal] = useState(false);
-            const [showSaleModal, setShowSaleModal] = useState(false);
-            const [showEditSaleModal, setShowEditSaleModal] = useState(false);
-            const [showCustomerModal, setShowCustomerModal] = useState(false);
-            const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
-            const [showCreditModal, setShowCreditModal] = useState(false);
-            const [showDeleteModal, setShowDeleteModal] = useState(false);
-            const [showResellerModal, setShowResellerModal] = useState(false);
-            const [showEditResellerModal, setShowEditResellerModal] = useState(false);
-            const [showTransferModal, setShowTransferModal] = useState(false);
-            const [showResellerSaleModal, setShowResellerSaleModal] = useState(false);
-            const [showReturnModal, setShowReturnModal] = useState(false);
-            const [showQuickBuyModal, setShowQuickBuyModal] = useState(false);
-            const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
-            const [showPurchaseHistoryModal, setShowPurchaseHistoryModal] = useState(false);
-            
-            const [editingProduct, setEditingProduct] = useState(null);
-            const [editingSale, setEditingSale] = useState(null);
-            const [editingCustomer, setEditingCustomer] = useState(null);
-            const [editingReseller, setEditingReseller] = useState(null);
-            const [deleteItem, setDeleteItem] = useState(null);
-            const [selectedReseller, setSelectedReseller] = useState(null);
-            const [quickBuyProduct, setQuickBuyProduct] = useState(null);
-            const [adjustStockProduct, setAdjustStockProduct] = useState(null);
-            
-            const [customerSort, setCustomerSort] = useState('default');
-            const [productSearchTerm, setProductSearchTerm] = useState('');
-            const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
-            const [productStatusFilter, setProductStatusFilter] = useState('todos');
-            const [productExpiryFilter, setProductExpiryFilter] = useState('all');
-            const [productSortBy, setProductSortBy] = useState('name');
-            const [stockSearchTerm, setStockSearchTerm] = useState('');
-            const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
-            const [stockStatusFilter, setStockStatusFilter] = useState('todos');
-            const [stockExpiryFilter, setStockExpiryFilter] = useState('all');
-            const [stockSortBy, setStockSortBy] = useState('name');
-            const [purchaseHistorySearch, setPurchaseHistorySearch] = useState('');
-            const [purchaseHistoryDateFrom, setPurchaseHistoryDateFrom] = useState('');
-            const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
-
-            const [productForm, setProductForm] = useState({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
-            const [purchaseForm, setPurchaseForm] = useState({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
-            const [saleForm, setSaleForm] = useState({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
-            const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
-            const [creditForm, setCreditForm] = useState({ saleId: '', amount: 0, dueDate: '', status: 'pendente' });
-            const [resellerForm, setResellerForm] = useState({ name: '', salonName: '', address: '', phone: '', email: '', commissionRate: 25 });
-            const [transferForm, setTransferForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
-            const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
-            const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
-            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
-            const [adjustStockForm, setAdjustStockForm] = useState({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
-
-            const [lowStockThreshold, setLowStockThreshold] = useState(3);
-            const [expiryAlertDays, setExpiryAlertDays] = useState(30);
-            const [staleProductDays, setStaleProductDays] = useState(30);
-            const fileInputRef = useRef(null);
             // ==================== HANDLERS ====================
             const handleAddProduct = () => {
                 if (!productForm.name) { alert('Nome obrigatório!'); return; }
@@ -605,7 +499,6 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
             };
 
             const handleDeleteProduct = () => { if (!deleteItem) return; setProducts(products.filter(p => p.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
-            
             const confirmDeleteProduct = (product) => {
                 if (sales.filter(s => s.productId === product.id).length > 0 && !confirm('Produto tem vendas. Continuar?')) return;
                 setDeleteItem({ type: 'product', ...product });
@@ -634,7 +527,6 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
             };
 
             const handleDeleteCustomer = () => { if (!deleteItem) return; setCustomers(customers.filter(c => c.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
-            
             const confirmDeleteCustomer = (customer) => {
                 if (sales.filter(s => s.customerId === customer.id).length > 0 && !confirm('Cliente tem compras. Continuar?')) return;
                 setDeleteItem({ type: 'customer', ...customer });
@@ -663,7 +555,6 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
             };
 
             const handleDeleteReseller = () => { if (!deleteItem) return; setResellers(resellers.filter(r => r.id !== deleteItem.id)); setDeleteItem(null); setShowDeleteModal(false); };
-            
             const confirmDeleteReseller = (reseller) => {
                 if (resellerStock.filter(t => t.resellerId === reseller.id && calculateResellerStock(reseller.id, t.productId) > 0).length > 0) { alert('Devolva produtos antes!'); return; }
                 setDeleteItem({ type: 'reseller', ...reseller });
@@ -772,7 +663,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
             };
 
             const exportData = () => {
-                const data = { exportDate: new Date().toISOString(), version: '4.0-firebase', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
+                const data = { exportDate: new Date().toISOString(), version: '3.0', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -858,173 +749,10 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
 
             const triggerImport = () => { fileInputRef.current.click(); };
 
-            // Handlers Firebase
-            const handleCloudSyncToggle = () => {
-                if (!cloudSyncEnabled) {
-                    if (confirm('Ativar Cloud Sync?\n\nSeus dados serão salvos no Firebase automaticamente!\n\nIsso permite acessar de QUALQUER dispositivo!')) {
-                        setCloudSyncEnabled(true);
-                        saveToFirebase({ products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } });
-                    }
-                } else {
-                    setCloudSyncEnabled(false);
-                }
-            };
-
-            const handleLoadFromCloud = () => {
-                if (confirm('Carregar da nuvem?\n\nSUBSTITUIRÁ dados atuais!')) {
-                    loadFromFirebase();
-                }
-            };
-
-            // Options para dropdowns
             const productOptions = useMemo(() => products.map(p => ({ value: p.id, label: p.name, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id) })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
             const customerOptions = useMemo(() => customers.map(c => ({ value: c.id, label: c.name, phone: c.phone || '' })), [customers]);
             const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
-            // ==================== CÁLCULOS ====================
-            const calculateAveragePrice = (productId) => {
-                const productPurchases = purchases.filter(p => p.productId === productId);
-                if (productPurchases.length === 0) return 0;
-                const totalValue = productPurchases.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-                const totalQuantity = productPurchases.reduce((sum, p) => sum + parseInt(p.quantity), 0);
-                return totalQuantity > 0 ? totalValue / totalQuantity : 0;
-            };
 
-            const calculateStock = (productId) => {
-                const totalIn = purchases.filter(p => p.productId === productId).reduce((sum, p) => sum + parseInt(p.quantity), 0);
-                const totalOut = sales.filter(s => s.productId === productId).reduce((sum, s) => sum + parseInt(s.quantity), 0);
-                const totalToResellers = resellerStock.filter(t => t.productId === productId).reduce((sum, t) => sum + parseInt(t.quantity), 0);
-                const totalReturned = resellerReturns.filter(r => r.productId === productId).reduce((sum, r) => sum + parseInt(r.quantity), 0);
-                const totalResellerSales = resellerSales.filter(s => s.productId === productId).reduce((sum, s) => sum + parseInt(s.quantity), 0);
-                const adjustmentsIn = stockAdjustments.filter(a => a.productId === productId && a.type === 'entrada').reduce((sum, a) => sum + parseInt(a.quantity), 0);
-                const adjustmentsOut = stockAdjustments.filter(a => a.productId === productId && a.type === 'saida').reduce((sum, a) => sum + parseInt(a.quantity), 0);
-                return totalIn - totalOut - totalToResellers + totalReturned + totalResellerSales + adjustmentsIn - adjustmentsOut;
-            };
-
-            const calculateResellerStock = (resellerId, productId) => {
-                const totalIn = resellerStock.filter(t => t.resellerId === resellerId && t.productId === productId).reduce((sum, t) => sum + parseInt(t.quantity), 0);
-                const totalSold = resellerSales.filter(s => s.resellerId === resellerId && s.productId === productId).reduce((sum, s) => sum + parseInt(s.quantity), 0);
-                const totalReturned = resellerReturns.filter(r => r.resellerId === resellerId && r.productId === productId).reduce((sum, r) => sum + parseInt(r.quantity), 0);
-                return totalIn - totalSold - totalReturned;
-            };
-
-            // ==================== FILTROS ====================
-            const filterAndSortProducts = (productsList, searchTerm, categoryFilter, statusFilter, expiryFilter, sortBy) => {
-                let filtered = productsList.filter(p => {
-                    const stock = calculateStock(p.id);
-                    const daysToExpiry = p.expiryDate ? calculateDaysUntilExpiry(p.expiryDate) : null;
-                    if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-                    if (categoryFilter !== 'todos' && p.category !== categoryFilter) return false;
-                    if (statusFilter === 'ok' && stock >= lowStockThreshold) return true;
-                    if (statusFilter === 'low' && stock > 0 && stock < lowStockThreshold) return true;
-                    if (statusFilter === 'out' && stock === 0) return true;
-                    if (statusFilter !== 'todos' && statusFilter !== 'ok' && statusFilter !== 'low' && statusFilter !== 'out') return false;
-                    if (expiryFilter === 'no-expiry' && !p.expiryDate) return true;
-                    if (expiryFilter === 'no-expiry' && p.expiryDate) return false;
-                    if (expiryFilter !== 'all' && expiryFilter !== 'no-expiry' && daysToExpiry !== null && daysToExpiry <= parseInt(expiryFilter)) return true;
-                    if (expiryFilter !== 'all' && expiryFilter !== 'no-expiry' && (daysToExpiry === null || daysToExpiry > parseInt(expiryFilter))) return false;
-                    return true;
-                });
-                filtered.sort((a, b) => {
-                    const stockA = calculateStock(a.id);
-                    const stockB = calculateStock(b.id);
-                    const valueA = stockA * (parseFloat(a.catalogPrice) || 0);
-                    const valueB = stockB * (parseFloat(b.catalogPrice) || 0);
-                    const expiryA = a.expiryDate ? calculateDaysUntilExpiry(a.expiryDate) : 9999;
-                    const expiryB = b.expiryDate ? calculateDaysUntilExpiry(b.expiryDate) : 9999;
-                    switch(sortBy) {
-                        case 'name': return a.name.localeCompare(b.name);
-                        case 'name-desc': return b.name.localeCompare(a.name);
-                        case 'stock': return stockA - stockB;
-                        case 'stock-desc': return stockB - stockA;
-                        case 'value': return valueB - valueA;
-                        case 'expiry': return expiryA - expiryB;
-                        default: return 0;
-                    }
-                });
-                return filtered;
-            };
-
-            const filteredProducts = useMemo(() => filterAndSortProducts(products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy), [products, productSearchTerm, productCategoryFilter, productStatusFilter, productExpiryFilter, productSortBy]);
-            const filteredStock = useMemo(() => filterAndSortProducts(products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy), [products, stockSearchTerm, stockCategoryFilter, stockStatusFilter, stockExpiryFilter, stockSortBy]);
-
-            // ==================== ALERTAS ====================
-            const lowStockProducts = useMemo(() => products.filter(p => calculateStock(p.id) < lowStockThreshold), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments, lowStockThreshold]);
-            const expiryAlertProducts = useMemo(() => products.filter(p => p.expiryDate && calculateDaysUntilExpiry(p.expiryDate) <= expiryAlertDays), [products, expiryAlertDays]);
-            const pendingCreditSales = useMemo(() => creditSales.filter(c => c.status === 'pendente'), [creditSales]);
-            const staleResellerProducts = useMemo(() => {
-                return resellerStock.filter(t => calculateDaysSince(t.date) >= staleProductDays).map(t => {
-                    const reseller = resellers.find(r => r.id === t.resellerId);
-                    const product = products.find(p => p.id === t.productId);
-                    return { ...t, resellerName: reseller?.name, productName: product?.name, days: calculateDaysSince(t.date) };
-                });
-            }, [resellerStock, resellers, products, staleProductDays]);
-
-            // ==================== RELATÓRIOS ====================
-            const financialReport = useMemo(() => {
-                const { start, end } = getMonthRange();
-                const monthlySales = sales.filter(s => new Date(s.date) >= start && new Date(s.date) <= end);
-                const monthlyPurchases = purchases.filter(p => new Date(p.date) >= start && new Date(p.date) <= end);
-                const totalSold = monthlySales.reduce((sum, s) => sum + (s.price * s.quantity), 0);
-                const totalInvested = monthlyPurchases.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-                const totalProfit = monthlySales.reduce((sum, s) => sum + ((s.price - calculateAveragePrice(s.productId)) * s.quantity), 0);
-                const topProducts = products.map(p => ({ ...p, sold: sales.filter(s => s.productId === p.id).reduce((sum, s) => sum + parseInt(s.quantity), 0) })).sort((a, b) => b.sold - a.sold).slice(0, 5);
-                return { totalSold, totalInvested, totalProfit, topProducts, monthlySales, monthlyPurchases };
-            }, [sales, purchases, products]);
-
-            const topSellingProducts = useMemo(() => {
-                return products.map(p => ({
-                    ...p,
-                    totalSold: sales.filter(s => s.productId === p.id).reduce((sum, s) => sum + parseInt(s.quantity), 0),
-                    totalRevenue: sales.filter(s => s.productId === p.id).reduce((sum, s) => sum + (s.price * s.quantity), 0)
-                })).sort((a, b) => b.totalSold - a.totalSold).slice(0, 5);
-            }, [products, sales]);
-
-            const resellerReport = useMemo(() => {
-                return resellers.map(r => {
-                    const resellerSalesList = resellerSales.filter(s => s.resellerId === r.id);
-                    const totalSales = resellerSalesList.reduce((sum, s) => sum + s.totalSale, 0);
-                    const commission = totalSales * (r.commissionRate / 100);
-                    const yourEarnings = totalSales - commission;
-                    const resellerProducts = resellerStock.filter(t => t.resellerId === r.id && calculateResellerStock(r.id, t.productId) > 0);
-                    return { ...r, totalSales, commission, yourEarnings, productsCount: resellerProducts.length, salesCount: resellerSalesList.length };
-                });
-            }, [resellers, resellerSales, resellerStock]);
-
-            const stockValueReport = useMemo(() => {
-                let totalPaidValue = 0;
-                let totalSaleValue = 0;
-                products.forEach(p => {
-                    const stock = calculateStock(p.id);
-                    if (stock > 0) {
-                        totalPaidValue += stock * calculateAveragePrice(p.id);
-                        totalSaleValue += stock * (parseFloat(p.catalogPrice) || 0);
-                    }
-                });
-                return { totalPaidValue, totalSaleValue, potentialProfit: totalSaleValue - totalPaidValue, profitMargin: totalPaidValue > 0 ? ((totalSaleValue - totalPaidValue) / totalPaidValue) * 100 : 0 };
-            }, [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
-
-            const customersWithStats = useMemo(() => {
-                return customers.map(c => {
-                    const customerSales = sales.filter(s => s.customerId === c.id);
-                    return { ...c, totalSpent: customerSales.reduce((sum, s) => sum + (s.price * s.quantity), 0), totalPurchases: customerSales.length };
-                });
-            }, [customers, sales]);
-
-            const filteredPurchaseHistory = useMemo(() => {
-                let filtered = [...purchases];
-                if (purchaseHistorySearch) filtered = filtered.filter(p => {
-                    const product = products.find(prod => prod.id === p.productId);
-                    return product && product.name.toLowerCase().includes(purchaseHistorySearch.toLowerCase());
-                });
-                if (purchaseHistoryDateFrom) filtered = filtered.filter(p => new Date(p.date) >= new Date(purchaseHistoryDateFrom));
-                if (purchaseHistoryDateTo) filtered = filtered.filter(p => new Date(p.date) <= new Date(purchaseHistoryDateTo));
-                return filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-            }, [purchases, products, purchaseHistorySearch, purchaseHistoryDateFrom, purchaseHistoryDateTo]);
-
-            // Options para dropdowns
-            const productOptions = useMemo(() => products.map(p => ({ value: p.id, label: p.name, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id) })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
-            const customerOptions = useMemo(() => customers.map(c => ({ value: c.id, label: c.name, phone: c.phone || '' })), [customers]);
-            const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
             // ==================== RENDER ====================
             return (
                 <div className="min-h-screen">
@@ -1035,13 +763,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                         <div className="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-3">
                             <div>
                                 <h1 className="text-xl md:text-3xl font-bold"><i className="fas fa-store mr-3"></i>Gestão O Boticário</h1>
-                                <p className="text-white/80 mt-1 text-xs md:text-sm">
-                                    {firebaseConnected ? (
-                                        <span><i className="fas fa-cloud mr-1"></i>Cloud: {syncStatus === 'synced' ? '✅ Sincronizado' : syncStatus === 'syncing' ? '🔄 Sincronizando...' : '⚠️ Erro'}</span>
-                                    ) : (
-                                        <span><i className="fas fa-database mr-1"></i>Local</span>
-                                    )}
-                                </p>
+                                <p className="text-white/80 mt-1 text-xs md:text-sm">Controle de vendas, estoque e revendedores</p>
                             </div>
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={triggerImport} className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition text-sm">
@@ -1198,63 +920,38 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                             })}
                                         </tbody>
                                     </table>
-                                    {filteredStock.length === 0 && (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <i className="fas fa-search text-4xl mb-3"></i>
-                                            <p>Nenhum produto encontrado</p>
-                                            <button onClick={() => { setStockSearchTerm(''); setStockCategoryFilter('todos'); setStockStatusFilter('todos'); setStockExpiryFilter('all'); setStockSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">Limpar filtros</button>
-                                        </div>
-                                    )}
+                                    {filteredStock.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-search text-4xl mb-3"></i><p>Nenhum produto encontrado</p><button onClick={() => { setStockSearchTerm(''); setStockCategoryFilter('todos'); setStockStatusFilter('todos'); setStockExpiryFilter('all'); setStockSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">Limpar filtros</button></div>}
                                 </div>
                             </div>
                         )}
+
                         {/* REVENDEDORES */}
                         {activeTab === 'resellers' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-handshake mr-2"></i>Gestão de Revendedores</h2>
-                                    <button onClick={() => setShowResellerModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-plus mr-2"></i>Novo Revendedor
-                                    </button>
+                                    <button onClick={() => setShowResellerModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-plus mr-2"></i>Novo Revendedor</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
-                                        <p className="text-purple-100 text-sm">Total Revendedores</p>
-                                        <p className="text-2xl font-bold">{resellers.length}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
-                                        <p className="text-green-100 text-sm">Vendas Totais</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.totalSale, 0))}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4">
-                                        <p className="text-blue-100 text-sm">Seu Ganho (75%)</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.yourEarnings, 0))}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-4">
-                                        <p className="text-orange-100 text-sm">Comissões (25%)</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.commission, 0))}</p>
-                                    </div>
+                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4"><p className="text-purple-100 text-sm">Total Revendedores</p><p className="text-2xl font-bold">{resellers.length}</p></div>
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4"><p className="text-green-100 text-sm">Vendas Totais</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.totalSale, 0))}</p></div>
+                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4"><p className="text-blue-100 text-sm">Seu Ganho (75%)</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.yourEarnings, 0))}</p></div>
+                                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-4"><p className="text-orange-100 text-sm">Comissões (25%)</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.commission, 0))}</p></div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {resellerReport.map(r => (
                                         <div key={r.id} className="bg-white rounded-lg shadow-md p-4 card-hover">
                                             <div className="flex items-start justify-between mb-3">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                                        <i className="fas fa-store text-purple-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-bold">{r.salonName}</h3>
-                                                        <p className="text-gray-500 text-sm">{r.name}</p>
-                                                        <span className={`text-xs px-2 py-0.5 rounded ${r.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{r.status}</span>
-                                                    </div>
+                                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center"><i className="fas fa-store text-purple-600 text-xl"></i></div>
+                                                    <div><h3 className="font-bold">{r.salonName}</h3><p className="text-gray-500 text-sm">{r.name}</p><span className={`text-xs px-2 py-0.5 rounded ${r.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{r.status}</span></div>
                                                 </div>
                                                 <div className="flex gap-1">
-                                                    <button onClick={() => { setSelectedReseller(null); setTransferForm({ ...transferForm, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs" title="Transferir"><i className="fas fa-exchange-alt"></i></button>
-                                                    <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Venda"><i className="fas fa-shopping-cart"></i></button>
-                                                    <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs" title="Devolução"><i className="fas fa-undo"></i></button>
-                                                    <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar"><i className="fas fa-edit"></i></button>
-                                                    <button onClick={() => confirmDeleteReseller(r)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir"><i className="fas fa-trash"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(null); setTransferForm({ ...transferForm, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs"><i className="fas fa-exchange-alt"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs"><i className="fas fa-shopping-cart"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs"><i className="fas fa-undo"></i></button>
+                                                    <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs"><i className="fas fa-edit"></i></button>
+                                                    <button onClick={() => confirmDeleteReseller(r)} className="btn-delete text-white px-2 py-1 rounded text-xs"><i className="fas fa-trash"></i></button>
                                                 </div>
                                             </div>
                                             <div className="space-y-2 text-sm">
@@ -1271,12 +968,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                         </div>
                                     ))}
                                 </div>
-                                {resellers.length === 0 && (
-                                    <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-                                        <i className="fas fa-handshake text-4xl mb-3"></i>
-                                        <p>Nenhum revendedor cadastrado</p>
-                                    </div>
-                                )}
+                                {resellers.length === 0 && <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500"><i className="fas fa-handshake text-4xl mb-3"></i><p>Nenhum revendedor cadastrado</p></div>}
                             </div>
                         )}
 
@@ -1285,9 +977,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Cadastro de Produtos</h2>
-                                    <button onClick={() => setShowProductModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-plus mr-2"></i>Novo Produto
-                                    </button>
+                                    <button onClick={() => setShowProductModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-plus mr-2"></i>Novo Produto</button>
                                 </div>
                                 <FilterBar searchTerm={productSearchTerm} onSearchChange={setProductSearchTerm} categoryFilter={productCategoryFilter} onCategoryChange={setProductCategoryFilter} statusFilter={productStatusFilter} onStatusChange={setProductStatusFilter} sortBy={productSortBy} onSortChange={setProductSortBy} expiryFilter={productExpiryFilter} onExpiryChange={setProductExpiryFilter} totalItems={products.length} filteredItems={filteredProducts.length} onExport={() => exportProductsCSV(filteredProducts, `produtos_boticario_${new Date().toISOString().split('T')[0]}.csv`)} />
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
@@ -1328,13 +1018,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                             })}
                                         </tbody>
                                     </table>
-                                    {filteredProducts.length === 0 && (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <i className="fas fa-search text-4xl mb-3"></i>
-                                            <p>Nenhum produto encontrado</p>
-                                            <button onClick={() => { setProductSearchTerm(''); setProductCategoryFilter('todos'); setProductStatusFilter('todos'); setProductExpiryFilter('all'); setProductSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">Limpar filtros</button>
-                                        </div>
-                                    )}
+                                    {filteredProducts.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-search text-4xl mb-3"></i><p>Nenhum produto encontrado</p><button onClick={() => { setProductSearchTerm(''); setProductCategoryFilter('todos'); setProductStatusFilter('todos'); setProductExpiryFilter('all'); setProductSortBy('name'); }} className="mt-3 text-purple-600 hover:underline">Limpar filtros</button></div>}
                                 </div>
                             </div>
                         )}
@@ -1344,9 +1028,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800">Registro de Vendas</h2>
-                                    <button onClick={() => setShowSaleModal(true)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-plus mr-2"></i>Nova Venda
-                                    </button>
+                                    <button onClick={() => setShowSaleModal(true)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-plus mr-2"></i>Nova Venda</button>
                                 </div>
                                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
                                     <table className="w-full min-w-[1000px]">
@@ -1388,23 +1070,17 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                             })}
                                         </tbody>
                                     </table>
-                                    {sales.length === 0 && (
-                                        <div className="p-8 text-center text-gray-500">
-                                            <i className="fas fa-shopping-cart text-4xl mb-3"></i>
-                                            <p>Nenhuma venda registrada</p>
-                                        </div>
-                                    )}
+                                    {sales.length === 0 && <div className="p-8 text-center text-gray-500"><i className="fas fa-shopping-cart text-4xl mb-3"></i><p>Nenhuma venda registrada</p></div>}
                                 </div>
                             </div>
                         )}
+
                         {/* COMPRAS */}
                         {activeTab === 'purchases' && (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
-                                    <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-truck mr-2"></i>Gestão de Compras</h2>
-                                    <button onClick={() => setShowPurchaseHistoryModal(true)} className="btn-history text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-history mr-2"></i>Histórico de Compras
-                                    </button>
+                                    <h2 className="text-2xl font-bold text-gray-800">Gestão de Compras</h2>
+                                    <button onClick={() => setShowPurchaseHistoryModal(true)} className="btn-history text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-history mr-2"></i>Histórico de Compras</button>
                                 </div>
                                 <div className="bg-white rounded-lg shadow-md p-6">
                                     <h3 className="text-xl font-bold text-gray-800 mb-4"><i className="fas fa-trophy text-yellow-500 mr-2"></i>🏆 Top 5 Produtos Mais Vendidos</h3>
@@ -1419,9 +1095,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                             </div>
                                         ))}
                                     </div>
-                                    {topSellingProducts.length === 0 && (
-                                        <p className="text-gray-500 text-center py-4">Nenhuma venda registrada ainda</p>
-                                    )}
+                                    {topSellingProducts.length === 0 && <p className="text-gray-500 text-center py-4">Nenhuma venda registrada ainda</p>}
                                 </div>
                                 <div className="bg-white rounded-lg shadow-md p-4">
                                     <h3 className="text-lg font-bold mb-4">Registrar Entrada de Mercadoria</h3>
@@ -1431,9 +1105,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                         <input type="number" placeholder="Preço Unitário (€)" value={purchaseForm.price} onChange={(e) => setPurchaseForm({...purchaseForm, price: e.target.value})} className="border rounded-lg p-3 text-sm" />
                                         <input type="date" value={purchaseForm.date} onChange={(e) => setPurchaseForm({...purchaseForm, date: e.target.value})} className="border rounded-lg p-3 text-sm" />
                                     </div>
-                                    <button onClick={handleAddPurchase} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-save mr-2"></i>Registrar Compra
-                                    </button>
+                                    <button onClick={handleAddPurchase} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-save mr-2"></i>Registrar Compra</button>
                                 </div>
                             </div>
                         )}
@@ -1442,10 +1114,8 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                         {activeTab === 'customers' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
-                                    <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-users mr-2"></i>Gestão de Clientes</h2>
-                                    <button onClick={() => setShowCustomerModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-user-plus mr-2"></i>Novo Cliente
-                                    </button>
+                                    <h2 className="text-2xl font-bold text-gray-800">Gestão de Clientes</h2>
+                                    <button onClick={() => setShowCustomerModal(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-user-plus mr-2"></i>Novo Cliente</button>
                                 </div>
                                 <div className="bg-white rounded-lg shadow-md p-4">
                                     <div className="flex items-center gap-3 flex-wrap">
@@ -1475,12 +1145,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                         </div>
                                     ))}
                                 </div>
-                                {customers.length === 0 && (
-                                    <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
-                                        <i className="fas fa-users text-4xl mb-3"></i>
-                                        <p>Nenhum cliente cadastrado</p>
-                                    </div>
-                                )}
+                                {customers.length === 0 && <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500"><i className="fas fa-users text-4xl mb-3"></i><p>Nenhum cliente cadastrado</p></div>}
                             </div>
                         )}
 
@@ -1489,23 +1154,12 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
                                     <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-hand-holding-usd mr-2"></i>Controle de Fiado</h2>
-                                    <button onClick={() => { setCreditForm({ saleId: '', amount: 0, dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], status: 'pendente' }); setShowCreditModal(true); }} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition text-sm">
-                                        <i className="fas fa-plus mr-2"></i>Novo Registro
-                                    </button>
+                                    <button onClick={() => { setCreditForm({ saleId: '', amount: 0, dueDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], status: 'pendente' }); setShowCreditModal(true); }} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition text-sm"><i className="fas fa-plus mr-2"></i>Novo Registro</button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white rounded-lg p-4">
-                                        <p className="text-yellow-100 text-sm">Total Pendente</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(pendingCreditSales.reduce((sum, c) => sum + c.amount, 0))}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4">
-                                        <p className="text-red-100 text-sm">Vencidos</p>
-                                        <p className="text-2xl font-bold">{pendingCreditSales.filter(c => new Date(c.dueDate) < new Date()).length}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
-                                        <p className="text-green-100 text-sm">Total Recebido</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(creditSales.filter(c => c.status === 'pago').reduce((sum, c) => sum + c.amount, 0))}</p>
-                                    </div>
+                                    <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white rounded-lg p-4"><p className="text-yellow-100 text-sm">Total Pendente</p><p className="text-2xl font-bold">{formatCurrency(pendingCreditSales.reduce((sum, c) => sum + c.amount, 0))}</p></div>
+                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4"><p className="text-red-100 text-sm">Vencidos</p><p className="text-2xl font-bold">{pendingCreditSales.filter(c => new Date(c.dueDate) < new Date()).length}</p></div>
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4"><p className="text-green-100 text-sm">Total Recebido</p><p className="text-2xl font-bold">{formatCurrency(creditSales.filter(c => c.status === 'pago').reduce((sum, c) => sum + c.amount, 0))}</p></div>
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div className="bg-white rounded-lg shadow-md p-4">
@@ -1550,181 +1204,45 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                         {/* RELATÓRIOS */}
                         {activeTab === 'reports' && (
                             <div className="space-y-4">
-                                <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-file-invoice-dollar mr-2"></i>Relatórios Financeiros</h2>
+                                <h2 className="text-2xl font-bold text-gray-800">Relatórios Financeiros</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4">
-                                        <p className="text-green-100 text-sm">Total Vendido (Mês)</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(financialReport.totalSold)}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4">
-                                        <p className="text-red-100 text-sm">Total Investido (Mês)</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(financialReport.totalInvested)}</p>
-                                    </div>
-                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4">
-                                        <p className="text-purple-100 text-sm">Lucro Líquido (Mês)</p>
-                                        <p className="text-2xl font-bold">{formatCurrency(financialReport.totalProfit)}</p>
-                                    </div>
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4"><p className="text-green-100 text-sm">Total Vendido (Mês)</p><p className="text-2xl font-bold">{formatCurrency(financialReport.totalSold)}</p></div>
+                                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-4"><p className="text-red-100 text-sm">Total Investido (Mês)</p><p className="text-2xl font-bold">{formatCurrency(financialReport.totalInvested)}</p></div>
+                                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4"><p className="text-purple-100 text-sm">Lucro Líquido (Mês)</p><p className="text-2xl font-bold">{formatCurrency(financialReport.totalProfit)}</p></div>
                                 </div>
                             </div>
                         )}
+
                         {/* CONFIGURAÇÕES */}
                         {activeTab === 'config' && (
                             <div className="space-y-4">
-                                <h2 className="text-2xl font-bold text-gray-800"><i className="fas fa-cog mr-2"></i>Configurações</h2>
-                                
-                                {/* FIREBASE CLOUD SYNC */}
-                                {firebaseConnected && (
-                                    <div className="bg-white rounded-lg shadow-md p-4 max-w-md mb-4">
-                                        <h3 className="text-lg font-bold text-gray-800 mb-3">
-                                            <i className="fas fa-cloud mr-2 text-purple-600"></i>
-                                            Sincronização na Nuvem (Firebase)
-                                        </h3>
-                                        
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div>
-                                                <p className="font-medium text-gray-700">Ativar Cloud Sync</p>
-                                                <p className="text-xs text-gray-500">Sincroniza celular e computador automaticamente</p>
-                                            </div>
-                                            <button
-                                                onClick={handleCloudSyncToggle}
-                                                className={`relative w-14 h-7 rounded-full transition ${cloudSyncEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                                            >
-                                                <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition ${cloudSyncEnabled ? 'transform translate-x-7' : ''}`}></span>
-                                            </button>
-                                        </div>
-                                        
-                                        {cloudSyncEnabled && (
-                                            <div className="bg-green-50 border-l-4 border-green-500 p-3">
-                                                <p className="text-sm text-green-800">
-                                                    <i className="fas fa-check-circle mr-2"></i>
-                                                    <strong>Ativo!</strong> Sincronização automática.
-                                                </p>
-                                                {lastSyncTime && (
-                                                    <p className="text-xs text-green-600 mt-1">
-                                                        Última sync: {formatDate(lastSyncTime)}
-                                                    </p>
-                                                )}
-                                                <p className="text-xs text-green-600 mt-2">
-                                                    💡 Agora você pode acessar do celular e os dados sincronizam automaticamente!
-                                                </p>
-                                            </div>
-                                        )}
-                                        
-                                        <button
-                                            onClick={handleLoadFromCloud}
-                                            className="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition text-sm"
-                                        >
-                                            <i className="fas fa-cloud-download-alt mr-2"></i>
-                                            Carregar da Nuvem
-                                        </button>
-                                    </div>
-                                )}
-                                
-                                {!firebaseConnected && (
-                                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 max-w-md mb-4">
-                                        <p className="text-sm text-yellow-800">
-                                            <i className="fas fa-exclamation-triangle mr-2"></i>
-                                            <strong>Firebase não conectado!</strong>
-                                        </p>
-                                        <p className="text-xs text-yellow-600 mt-1">
-                                            Verifique se as regras do Firestore foram publicadas.
-                                        </p>
-                                    </div>
-                                )}
-                                
-                                {/* BACKUP AUTOMÁTICO LOCAL */}
+                                <h2 className="text-2xl font-bold text-gray-800">Configurações</h2>
                                 <div className="bg-white rounded-lg shadow-md p-4 max-w-md mb-4">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-3">
-                                        <i className="fas fa-cloud-upload-alt mr-2 text-purple-600"></i>
-                                        Backup Automático Local
-                                    </h3>
-                                    
+                                    <h3 className="text-lg font-bold text-gray-800 mb-3"><i className="fas fa-cloud-upload-alt mr-2 text-purple-600"></i>Backup Automático</h3>
                                     <div className="flex items-center justify-between mb-3">
-                                        <div>
-                                            <p className="font-medium text-gray-700">Ativar Backup Automático</p>
-                                            <p className="text-xs text-gray-500">Backup a cada 5 minutos + ao fechar</p>
-                                        </div>
-                                        <button
-                                            onClick={() => setAutoBackupEnabled(!autoBackupEnabled)}
-                                            className={`relative w-14 h-7 rounded-full transition ${autoBackupEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                                        >
-                                            <span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition ${autoBackupEnabled ? 'transform translate-x-7' : ''}`}></span>
-                                        </button>
+                                        <div><p className="font-medium text-gray-700">Ativar Backup Automático</p><p className="text-xs text-gray-500">Backup a cada 5 minutos + ao fechar</p></div>
+                                        <button onClick={() => setAutoBackupEnabled(!autoBackupEnabled)} className={`relative w-14 h-7 rounded-full transition ${autoBackupEnabled ? 'bg-green-500' : 'bg-gray-300'}`}><span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition ${autoBackupEnabled ? 'transform translate-x-7' : ''}`}></span></button>
                                     </div>
-                                    
                                     {autoBackupEnabled && (
                                         <div className="bg-green-50 border-l-4 border-green-500 p-3">
-                                            <p className="text-sm text-green-800">
-                                                <i className="fas fa-check-circle mr-2"></i>
-                                                <strong>Ativo!</strong> Backup automático ativado.
-                                            </p>
+                                            <p className="text-sm text-green-800"><i className="fas fa-check-circle mr-2"></i><strong>Ativo!</strong> Backup automático ativado.</p>
                                         </div>
                                     )}
-                                    
-                                    <button
-                                        onClick={triggerAutoBackup}
-                                        className="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition text-sm"
-                                    >
-                                        <i className="fas fa-download mr-2"></i>
-                                        Backup Agora
-                                    </button>
+                                    <button onClick={triggerAutoBackup} className="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition text-sm"><i className="fas fa-download mr-2"></i>Backup Agora</button>
                                 </div>
-                                
-                                {/* CONFIGURAÇÕES GERAIS */}
                                 <div className="bg-white rounded-lg shadow-md p-4 max-w-md">
                                     <div className="space-y-3">
-                                        <div>
-                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
-                                                <i className="fas fa-box mr-2"></i>Limite de Estoque Baixo (unidades)
-                                            </label>
-                                            <input 
-                                                type="number" 
-                                                value={lowStockThreshold} 
-                                                onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 3)} 
-                                                className="w-full border rounded-lg p-3 text-sm" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
-                                                <i className="fas fa-clock mr-2"></i>Alerta de Validade (dias)
-                                            </label>
-                                            <input 
-                                                type="number" 
-                                                value={expiryAlertDays} 
-                                                onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 30)} 
-                                                className="w-full border rounded-lg p-3 text-sm" 
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-gray-700 font-medium mb-2 text-sm">
-                                                <i className="fas fa-exclamation-circle mr-2"></i>Alerta Produto Parado (dias)
-                                            </label>
-                                            <input 
-                                                type="number" 
-                                                value={staleProductDays} 
-                                                onChange={(e) => setStaleProductDays(parseInt(e.target.value) || 30)} 
-                                                className="w-full border rounded-lg p-3 text-sm" 
-                                            />
-                                        </div>
-                                        <div className="pt-3 border-t">
-                                            <button 
-                                                onClick={() => { 
-                                                    if (confirm('Tem certeza? Isso apagará TODOS os dados!')) { 
-                                                        localStorage.clear(); 
-                                                        window.location.reload(); 
-                                                    } 
-                                                }} 
-                                                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition w-full text-sm"
-                                            >
-                                                <i className="fas fa-trash mr-2"></i>Limpar Todos os Dados
-                                            </button>
-                                        </div>
+                                        <div><label className="block text-gray-700 font-medium mb-2 text-sm">Limite de Estoque Baixo (unidades)</label><input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 3)} className="w-full border rounded-lg p-3 text-sm" /></div>
+                                        <div><label className="block text-gray-700 font-medium mb-2 text-sm">Alerta de Validade (dias)</label><input type="number" value={expiryAlertDays} onChange={(e) => setExpiryAlertDays(parseInt(e.target.value) || 30)} className="w-full border rounded-lg p-3 text-sm" /></div>
+                                        <div><label className="block text-gray-700 font-medium mb-2 text-sm">Alerta Produto Parado (dias)</label><input type="number" value={staleProductDays} onChange={(e) => setStaleProductDays(parseInt(e.target.value) || 30)} className="w-full border rounded-lg p-3 text-sm" /></div>
+                                        <div className="pt-3 border-t"><button onClick={() => { if (confirm('Tem certeza? Isso apagará todos os dados!')) { localStorage.clear(); window.location.reload(); } }} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition w-full text-sm"><i className="fas fa-trash mr-2"></i>Limpar Todos os Dados</button></div>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </main>
-                    {/* ==================== MODALS ==================== */}
+
+                    {/* ==================== TODOS OS MODALS ==================== */}
                     
                     {/* Modal Ajustar Stock */}
                     <Modal isOpen={showAdjustStockModal} onClose={() => { setShowAdjustStockModal(false); setAdjustStockProduct(null); }} title="🔧 Ajustar Stock">
@@ -1811,9 +1329,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                     <p className="text-sm"><strong>Total:</strong> {formatCurrency(quickBuyForm.quantity * quickBuyForm.price)}</p>
                                 </div>
                             )}
-                            <button onClick={handleQuickBuy} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-cart-plus mr-2"></i>Registrar Compra
-                            </button>
+                            <button onClick={handleQuickBuy} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-cart-plus mr-2"></i>Registrar Compra</button>
                         </div>
                     </Modal>
 
@@ -1873,9 +1389,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Data da Devolução</label>
                                 <input type="date" value={returnForm.date} onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleReturn} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-undo mr-2"></i>Devolver Produtos
-                            </button>
+                            <button onClick={handleReturn} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg transition"><i className="fas fa-undo mr-2"></i>Devolver Produtos</button>
                         </div>
                     </Modal>
 
@@ -1910,9 +1424,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                     <p className="text-sm text-green-600 font-bold"><strong>Seu Ganho (75%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * ((100 - selectedReseller.commissionRate) / 100))}</p>
                                 </div>
                             )}
-                            <button onClick={handleResellerSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-check mr-2"></i>Registrar Venda
-                            </button>
+                            <button onClick={handleResellerSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
                         </div>
                     </Modal>
 
@@ -1953,9 +1465,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Data de Validade</label>
                                 <input type="date" value={productForm.expiryDate} onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleAddProduct} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Salvar Produto
-                            </button>
+                            <button onClick={handleAddProduct} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Produto</button>
                         </div>
                     </Modal>
 
@@ -1986,9 +1496,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Data de Validade</label>
                                 <input type="date" value={productForm.expiryDate} onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleEditProduct} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Atualizar Produto
-                            </button>
+                            <button onClick={handleEditProduct} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Produto</button>
                         </div>
                     </Modal>
 
@@ -2021,9 +1529,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
                                 <input type="date" value={saleForm.date} onChange={(e) => setSaleForm({...saleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleAddSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-check mr-2"></i>Registrar Venda
-                            </button>
+                            <button onClick={handleAddSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
                         </div>
                     </Modal>
 
@@ -2059,9 +1565,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
                                 <input type="date" value={saleForm.date} onChange={(e) => setSaleForm({...saleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleEditSale} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Atualizar Venda
-                            </button>
+                            <button onClick={handleEditSale} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Venda</button>
                         </div>
                     </Modal>
 
@@ -2080,9 +1584,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
                                 <input type="email" value={customerForm.email} onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleAddCustomer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Salvar Cliente
-                            </button>
+                            <button onClick={handleAddCustomer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Cliente</button>
                         </div>
                     </Modal>
 
@@ -2101,9 +1603,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
                                 <input type="email" value={customerForm.email} onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleEditCustomer} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Atualizar Cliente
-                            </button>
+                            <button onClick={handleEditCustomer} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Cliente</button>
                         </div>
                     </Modal>
 
@@ -2136,9 +1636,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
                                 <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleAddReseller} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Salvar Revendedor
-                            </button>
+                            <button onClick={handleAddReseller} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Revendedor</button>
                         </div>
                     </Modal>
 
@@ -2171,9 +1669,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Email</label>
                                 <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleEditReseller} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Atualizar Revendedor
-                            </button>
+                            <button onClick={handleEditReseller} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Revendedor</button>
                         </div>
                     </Modal>
 
@@ -2188,9 +1684,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                                 <label className="block text-gray-700 font-medium mb-2">Data de Vencimento *</label>
                                 <input type="date" value={creditForm.dueDate} onChange={(e) => setCreditForm({...creditForm, dueDate: e.target.value})} className="w-full border rounded-lg p-3" />
                             </div>
-                            <button onClick={handleAddCredit} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg transition">
-                                <i className="fas fa-save mr-2"></i>Registrar Fiado
-                            </button>
+                            <button onClick={handleAddCredit} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Registrar Fiado</button>
                         </div>
                     </Modal>
 
@@ -2291,14 +1785,7 @@ const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">
-                                {firebaseConnected ? (
-                                    <span><i className="fas fa-cloud mr-1"></i>Firebase Cloud Sync • {cloudSyncEnabled ? '✅ Ativo' : '⚠️ Inativo'}</span>
-                                ) : (
-                                    <span><i className="fas fa-database mr-1"></i>Armazenamento Local</span>
-                                )}
-                                • {new Date().getFullYear()}
-                            </p>
+                            <p className="text-gray-500 text-sm mt-2">Versão Estável • Todos Botões Funcionando • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
