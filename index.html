@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- PWA / App Mobile →
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -30,6 +29,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .boticario-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
@@ -79,9 +79,26 @@
         firebase.initializeApp(firebaseConfig);
     }
     const db = firebase.firestore();
+const auth = firebase.auth();
 
 
         // ==================== UTILITÁRIOS ====================
+// Calcula quantos dias se passaram desde a última visita
+        const getDaysSince = (dateString) => {
+            if (!dateString) return 999; // Se nunca foi visitado, retorna um número alto (atrasado)
+            const lastVisit = new Date(dateString + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Zera as horas para calcular apenas dias
+            const diffTime = today - lastVisit;
+            return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        };
+
+        // Retorna a cor do "Semáforo"
+        const getVisitStatusColor = (days) => {
+            if (days <= 10) return "text-green-500"; // Tudo OK (Verde)
+            if (days <= 14) return "text-yellow-500"; // Agendar logo (Amarelo)
+            return "text-red-500"; // Atrasado (Vermelho)
+        };
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
         const formatCurrency = (value) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(value);
         const formatDate = (date) => new Date(date).toLocaleDateString('pt-PT');
@@ -228,6 +245,45 @@
         function App() {
             // Estados Principais
             const [activeTab, setActiveTab] = useState('dashboard');
+// ==================== LÓGICA DO LOGIN ====================
+            const [user, setUser] = useState(null);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [isRegistering, setIsRegistering] = useState(false);
+            const [authError, setAuthError] = useState('');
+
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged((userLogado) => setUser(userLogado));
+              
+ return () => unsubscribe();
+            }, []);
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                try {
+                    if (isRegistering) {
+                        await auth.createUserWithEmailAndPassword(email, password);
+                    } else {
+                        await auth.signInWithEmailAndPassword(email, password);
+                    }
+                } catch (error) {
+                    setAuthError("Erro: Verifique os dados ou use uma senha de 6+ caracteres.");
+                }
+            };
+            const handleLogout = () => auth.signOut();
+            // =========================================================
+// Função para registrar a visita de hoje
+            const handleRegisterVisit = (resellerId) => {
+                const today = new Date().toISOString().split('T')[0]; // Pega a data de hoje (YYYY-MM-DD)
+                
+                const updatedResellers = resellers.map(r => 
+                    r.id === resellerId ? { ...r, lastVisitDate: today } : r
+                );
+                
+                setResellers(updatedResellers);
+                // Como o Firebase já está escutando o 'resellers', ele vai salvar na nuvem automaticamente!
+            };
             const [products, setProducts] = useState([]);
             const [purchases, setPurchases] = useState([]);
             const [sales, setSales] = useState([]);
@@ -333,18 +389,22 @@
             
             const fileInputRef = useRef(null);
 
-          // ==================== A MÁGICA DA NUVEM (FIREBASE) ====================
+         // ==================== A MÁGICA DA NUVEM (BANCO INDIVIDUAL) ====================
             const isReceivingData = useRef(true);
 
+            // 1. ESCUTA O BANCO DE DADOS (AGORA EXCLUSIVO DO UTILIZADOR)
             useEffect(() => {
-                const unsubscribe = db.collection('app_boticario').doc('banco_principal').onSnapshot((doc) => {
+                // Se não houver nenhum utilizador logado, pára por aqui e não tenta ler a nuvem
+                if (!user) return;
+
+                // Repare na magia: trocámos 'banco_principal' por user.uid (O ID único da conta!)
+                const unsubscribe = db.collection('app_boticario').doc(user.uid).onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
                         
-                        // Pausa o salvamento enquanto atualiza a tela
                         isReceivingData.current = true;
                         
-                        // CARREGA TODAS AS SUAS 10 TABELAS DO BANCO
+                        // CARREGA TODAS AS SUAS 10 TABELAS DO BANCO DO UTILIZADOR
                         if (data.products) setProducts(data.products);
                         if (data.purchases) setPurchases(data.purchases);
                         if (data.sales) setSales(data.sales);
@@ -356,21 +416,24 @@
                         if (data.resellerReturns) setResellerReturns(data.resellerReturns);
                         if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
                         
-                        // Reativa o "salvar automático" após 1 segundo
                         setTimeout(() => { isReceivingData.current = false; }, 1000);
                     } else {
+                        // SE FOR UMA CONTA NOVA: Limpa a tela para não misturar com dados de outros
+                        setProducts([]); setPurchases([]); setSales([]); setCustomers([]);
+                        setCreditSales([]); setResellers([]); setResellerStock([]);
+                        setResellerSales([]); setResellerReturns([]); setStockAdjustments([]);
                         isReceivingData.current = false;
                     }
                 });
 
                 return () => unsubscribe();
-            }, []);
+            }, [user]); // <- O código agora reage sempre que o utilizador muda
 
+            // 2. SALVA AUTOMATICAMENTE NA NUVEM (NA PASTA PRIVADA DO UTILIZADOR)
             useEffect(() => {
-                // Se estiver apenas recebendo dados, não sobrescreve
+                if (!user) return;
                 if (isReceivingData.current) return;
 
-                // SALVA TODAS AS SUAS 10 TABELAS NA NUVEM
                 const saveData = {
                     products: products || [],
                     purchases: purchases || [],
@@ -384,11 +447,12 @@
                     stockAdjustments: stockAdjustments || []
                 };
 
-                db.collection('app_boticario').doc('banco_principal').set(saveData)
-                    .then(() => console.log("Nuvem atualizada com sucesso!"))
+                // Salva diretamente na pasta exclusiva do utilizador (user.uid)
+                db.collection('app_boticario').doc(user.uid).set(saveData)
+                    .then(() => console.log("Nuvem privada atualizada com sucesso!"))
                     .catch(error => console.error("Erro na nuvem:", error));
                     
-            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, user]);
             // ==================== FIM DA CONFIGURAÇÃO DA NUVEM ====================
 
             // ===============================================================
@@ -813,7 +877,45 @@
             const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
 
             // ==================== RENDER ====================
-            return (
+            // ==================== TELA DE BLOQUEIO VISUAL ====================
+            // Este bloco DEVE ficar no final, logo antes do "return" principal do App
+            if (!user) {
+                return (
+                    <div className="min-h-screen boticario-gradient flex items-center justify-center p-4">
+                        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+                            <div className="text-center mb-8">
+                                <i className="fas fa-store text-5xl text-purple-600 mb-4"></i>
+                                <h1 className="text-2xl font-bold text-gray-800">
+                                    {isRegistering ? 'Criar Nova Conta' : 'Acesso ao Sistema'}
+                                </h1>
+                                <p className="text-gray-500 mt-2">Gestão de Revenda</p>
+                            </div>
+
+                            <form onSubmit={handleAuth} className="space-y-6">
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">E-mail</label>
+                                    <input type="email" className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2">Senha</label>
+                                    <input type="password" className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                                </div>
+                                {authError && <div className="alert-red text-red-700 p-3 rounded text-sm">{authError}</div>}
+                                <button type="submit" className="w-full boticario-gradient text-white font-bold py-3 px-4 rounded-lg hover:opacity-90">
+                                    {isRegistering ? 'Cadastrar' : 'Entrar no Sistema'}
+                                </button>
+                            </form>
+                            <div className="text-center mt-6">
+                                <button onClick={() => setIsRegistering(!isRegistering)} className="text-purple-600 text-sm font-medium">
+                                    {isRegistering ? 'Já tem conta? Entrar' : 'Não tem conta? Cadastrar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            // ================================================================= 
+return (
                 <div className="min-h-screen">
                     <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".json" style={{ display: 'none' }} />
 
@@ -984,7 +1086,7 @@
                             </div>
                         )}
 
-                        {/* REVENDEDORES */}
+            {/* REVENDEDORES */}
                         {activeTab === 'resellers' && (
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center flex-wrap gap-2">
@@ -1003,14 +1105,27 @@
                                             <div className="flex items-start justify-between mb-3">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center"><i className="fas fa-store text-purple-600 text-xl"></i></div>
-                                                    <div><h3 className="font-bold">{r.salonName}</h3><p className="text-gray-500 text-sm">{r.name}</p><span className={`text-xs px-2 py-0.5 rounded ${r.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{r.status}</span></div>
+                                                    <div>
+                                                        {/* AQUI ENTROU O SEMÁFORO JUNTO AO NOME DO SALÃO */}
+                                                        <h3 className="font-bold flex items-center">
+                                                            {r.salonName}
+                                                            <span title={`Última visita: ${r.lastVisitDate ? formatDate(r.lastVisitDate) : 'Nunca'}`} className="ml-2 cursor-pointer">
+                                                                <i className={`fas fa-circle text-xs ${getVisitStatusColor(getDaysSince(r.lastVisitDate))}`}></i>
+                                                            </span>
+                                                        </h3>
+                                                        <p className="text-gray-500 text-sm">{r.name}</p>
+                                                        <span className={`text-xs px-2 py-0.5 rounded ${r.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{r.status}</span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => { setSelectedReseller(null); setTransferForm({ ...transferForm, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs"><i className="fas fa-exchange-alt"></i></button>
-                                                    <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs"><i className="fas fa-shopping-cart"></i></button>
-                                                    <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs"><i className="fas fa-undo"></i></button>
-                                                    <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs"><i className="fas fa-edit"></i></button>
-                                                    <button onClick={() => confirmDeleteReseller(r)} className="btn-delete text-white px-2 py-1 rounded text-xs"><i className="fas fa-trash"></i></button>
+                                                <div className="flex gap-1 flex-wrap justify-end">
+                                                    {/* AQUI ENTROU O BOTÃO DE VISITA (Aperto de mãos) */}
+                                                    <button onClick={() => handleRegisterVisit(r.id)} className="bg-teal-500 hover:bg-teal-600 text-white px-2 py-1 rounded text-xs" title="Registrar Visita Hoje"><i className="fas fa-handshake"></i></button>
+                                                    
+                                                    <button onClick={() => { setSelectedReseller(null); setTransferForm({ ...transferForm, quantity: 1 }); setShowTransferModal(true); }} className="btn-transfer text-white px-2 py-1 rounded text-xs" title="Transferir Estoque"><i className="fas fa-exchange-alt"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowResellerSaleModal(true); }} className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs" title="Registrar Venda"><i className="fas fa-shopping-cart"></i></button>
+                                                    <button onClick={() => { setSelectedReseller(r); setShowReturnModal(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs" title="Devolução"><i className="fas fa-undo"></i></button>
+                                                    <button onClick={() => openEditReseller(r)} className="btn-edit text-white px-2 py-1 rounded text-xs" title="Editar"><i className="fas fa-edit"></i></button>
+                                                    <button onClick={() => confirmDeleteReseller(r)} className="btn-delete text-white px-2 py-1 rounded text-xs" title="Excluir"><i className="fas fa-trash"></i></button>
                                                 </div>
                                             </div>
                                             <div className="space-y-2 text-sm">
@@ -1818,6 +1933,7 @@
                                     <tbody>
                                         {filteredPurchaseHistory.map(p => {
                                             const product = products.find(prod => prod.id === p.productId);
+
                                             return (
                                                 <tr key={p.id} className="border-t">
                                                     <td className="p-3">{formatDate(p.date)}</td>
