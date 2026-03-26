@@ -331,13 +331,11 @@
             
             const fileInputRef = useRef(null);
 
-            // ==================== PERSISTÊNCIA ====================
            // ==================== PERSISTÊNCIA NA NUVEM ====================
-            // Controlador para evitar loop de salvamento
-            const isReceivingData = useRef(true);
+            const isReceivingData = React.useRef(true);
 
             // 1. ESCUTA O BANCO DE DADOS EM TEMPO REAL
-            useEffect(() => {
+            React.useEffect(() => {
                 const unsubscribe = db.collection('app_boticario').doc('banco_principal').onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
@@ -345,16 +343,10 @@
                         // Pausa o salvamento automático enquanto a tela atualiza com os dados da nuvem
                         isReceivingData.current = true;
                         
-                        if(data.products) setProducts(data.products);
-                        if(data.purchases) setPurchases(data.purchases);
-                        if(data.sales) setSales(data.sales);
-                        if(data.customers) setCustomers(data.customers);
-                        if(data.creditSales) setCreditSales(data.creditSales);
-                        if(data.resellers) setResellers(data.resellers);
-                        if(data.resellerStock) setResellerStock(data.resellerStock);
-                        if(data.resellerSales) setResellerSales(data.resellerSales);
-                        if(data.resellerReturns) setResellerReturns(data.resellerReturns);
-                        if(data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
+                        if (data.products) setProducts(data.products);
+                        if (data.purchaseHistory) setPurchaseHistory(data.purchaseHistory);
+                        if (data.sales) setSales(data.sales);
+                        if (data.resellers) setResellers(data.resellers);
                         
                         // Reativa o "salvar automático" 1 segundo após o carregamento
                         setTimeout(() => { isReceivingData.current = false; }, 1000);
@@ -367,19 +359,23 @@
             }, []);
 
             // 2. SALVA AUTOMATICAMENTE NA NUVEM A QUALQUER MUDANÇA
-            useEffect(() => {
-                // Se estiver apenas recebendo dados do outro celular, não sobrescreve
+            React.useEffect(() => {
+                // Se estiver apenas recebendo dados do banco, não sobrescreve
                 if (isReceivingData.current) return;
 
+                // Aqui usamos APENAS as variáveis que existem no seu aplicativo
                 const saveData = {
-                    products, purchases, sales, customers, creditSales, 
-                    resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments
+                    products: products || [], 
+                    purchaseHistory: purchaseHistory || [], 
+                    sales: sales || [], 
+                    resellers: resellers || []
                 };
 
                 db.collection('app_boticario').doc('banco_principal').set(saveData)
-                    .catch(error => console.error("Erro ao sincronizar com a nuvem:", error));
+                    .then(() => console.log("✅ Dados salvos na nuvem com sucesso!"))
+                    .catch(error => console.error("❌ Erro ao sincronizar com a nuvem:", error));
                     
-            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
+            }, [products, purchaseHistory, sales, resellers]);
             // ===============================================================
 
 
