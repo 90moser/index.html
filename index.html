@@ -19,13 +19,15 @@
 
 <!-- Manifesto PWA -->
 <link rel="manifest" href="manifest.json">
-    <meta charset="UTF-8">
+    <meta charset="UTF-8">react
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão Revenda O Boticário</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .boticario-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
@@ -61,6 +63,21 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
+// INICIALIZA O FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyDAZJP5PVjj-iRGKoiR22-M2EBzp61OaDA",
+      authDomain: "gestaorevenda-f4334.firebaseapp.com",
+      projectId: "gestaorevenda-f4334",
+      storageBucket: "gestaorevenda-f4334.firebasestorage.app",
+      messagingSenderId: "893230315835",
+      appId: "1:893230315835:web:15fe289a91fb1da42b1f1e"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
 
         // ==================== UTILITÁRIOS ====================
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -315,43 +332,56 @@
             const fileInputRef = useRef(null);
 
             // ==================== PERSISTÊNCIA ====================
+           // ==================== PERSISTÊNCIA NA NUVEM ====================
+            // Controlador para evitar loop de salvamento
+            const isReceivingData = useRef(true);
+
+            // 1. ESCUTA O BANCO DE DADOS EM TEMPO REAL
             useEffect(() => {
-                const loadData = (key) => {
-                    const data = localStorage.getItem(`boticario_${key}`);
-                    return data ? JSON.parse(data) : [];
-                };
-                setProducts(loadData('products'));
-                setPurchases(loadData('purchases'));
-                setSales(loadData('sales'));
-                setCustomers(loadData('customers'));
-                setCreditSales(loadData('creditSales'));
-                setResellers(loadData('resellers'));
-                setResellerStock(loadData('resellerStock'));
-                setResellerSales(loadData('resellerSales'));
-                setResellerReturns(loadData('resellerReturns'));
-                setStockAdjustments(loadData('stockAdjustments'));
-                const config = localStorage.getItem('boticario_config');
-                if (config) {
-                    const cfg = JSON.parse(config);
-                    setLowStockThreshold(cfg.lowStockThreshold || 3);
-                    setExpiryAlertDays(cfg.expiryAlertDays || 30);
-                    setStaleProductDays(cfg.staleProductDays || 30);
-                }
+                const unsubscribe = db.collection('app_boticario').doc('banco_principal').onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        
+                        // Pausa o salvamento automático enquanto a tela atualiza com os dados da nuvem
+                        isReceivingData.current = true;
+                        
+                        if(data.products) setProducts(data.products);
+                        if(data.purchases) setPurchases(data.purchases);
+                        if(data.sales) setSales(data.sales);
+                        if(data.customers) setCustomers(data.customers);
+                        if(data.creditSales) setCreditSales(data.creditSales);
+                        if(data.resellers) setResellers(data.resellers);
+                        if(data.resellerStock) setResellerStock(data.resellerStock);
+                        if(data.resellerSales) setResellerSales(data.resellerSales);
+                        if(data.resellerReturns) setResellerReturns(data.resellerReturns);
+                        if(data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
+                        
+                        // Reativa o "salvar automático" 1 segundo após o carregamento
+                        setTimeout(() => { isReceivingData.current = false; }, 1000);
+                    } else {
+                        isReceivingData.current = false; // Primeiro uso: permite criar o banco
+                    }
+                });
+
+                return () => unsubscribe();
             }, []);
 
+            // 2. SALVA AUTOMATICAMENTE NA NUVEM A QUALQUER MUDANÇA
             useEffect(() => {
-                localStorage.setItem('boticario_products', JSON.stringify(products));
-                localStorage.setItem('boticario_purchases', JSON.stringify(purchases));
-                localStorage.setItem('boticario_sales', JSON.stringify(sales));
-                localStorage.setItem('boticario_customers', JSON.stringify(customers));
-                localStorage.setItem('boticario_creditSales', JSON.stringify(creditSales));
-                localStorage.setItem('boticario_resellers', JSON.stringify(resellers));
-                localStorage.setItem('boticario_resellerStock', JSON.stringify(resellerStock));
-                localStorage.setItem('boticario_resellerSales', JSON.stringify(resellerSales));
-                localStorage.setItem('boticario_resellerReturns', JSON.stringify(resellerReturns));
-                localStorage.setItem('boticario_stockAdjustments', JSON.stringify(stockAdjustments));
-                localStorage.setItem('boticario_config', JSON.stringify({ lowStockThreshold, expiryAlertDays, staleProductDays }));
-            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, lowStockThreshold, expiryAlertDays, staleProductDays]);
+                // Se estiver apenas recebendo dados do outro celular, não sobrescreve
+                if (isReceivingData.current) return;
+
+                const saveData = {
+                    products, purchases, sales, customers, creditSales, 
+                    resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments
+                };
+
+                db.collection('app_boticario').doc('banco_principal').set(saveData)
+                    .catch(error => console.error("Erro ao sincronizar com a nuvem:", error));
+                    
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
+            // ===============================================================
+
 
             // ==================== CÁLCULOS ====================
             const calculateAveragePrice = (productId) => {
@@ -1814,3 +1844,4 @@
     </script>
 </body>
 </html>
+
