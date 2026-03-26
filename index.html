@@ -1,34 +1,29 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- PWA / App Mobile -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#667eea">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="O Boticário">
-
-<!-- Ícones para iOS -->
-<link rel="apple-touch-icon" sizes="180x180" href="icon-192.png">
-<link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
-<link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
-
-<!-- Ícones para Android -->
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-
-<!-- Manifesto PWA -->
-<link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Gestão Revenda O Boticário</title>
+    
+    <!-- PWA / Mobile -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="O Boticário">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Scripts -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
     <style>
         .boticario-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .alert-red { background-color: #fee2e2; border-left: 4px solid #ef4444; }
@@ -63,21 +58,31 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
-// INICIALIZA O FIREBASE
-    const firebaseConfig = {
-      apiKey: "AIzaSyDAZJP5PVjj-iRGKoiR22-M2EBzp61OaDA",
-      authDomain: "gestaorevenda-f4334.firebaseapp.com",
-      projectId: "gestaorevenda-f4334",
-      storageBucket: "gestaorevenda-f4334.firebasestorage.app",
-      messagingSenderId: "893230315835",
-      appId: "1:893230315835:web:15fe289a91fb1da42b1f1e"
-    };
 
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.firestore();
+        // ==================== FIREBASE ====================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDAZJP5PVjj-iRGKoiR22-M2EBzp61OaDA",
+            authDomain: "gestaorevenda-f4334.firebaseapp.com",
+            projectId: "gestaorevenda-f4334",
+            storageBucket: "gestaorevenda-f4334.firebasestorage.app",
+            messagingSenderId: "893230315835",
+            appId: "1:893230315835:web:15fe289a91fb1da42b1f1e"
+        };
 
+        let db = null;
+        let firebaseConnected = false;
+        
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            firebaseConnected = true;
+            console.log('✅ Firebase conectado!');
+        } catch (error) {
+            console.error('❌ Erro Firebase:', error);
+        }
+        // ==================== FIM FIREBASE ====================
 
         // ==================== UTILITÁRIOS ====================
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -237,7 +242,14 @@
             const [resellerReturns, setResellerReturns] = useState([]);
             const [stockAdjustments, setStockAdjustments] = useState([]);
             
-            // Backup Automático
+            // Estados Firebase
+            const [isFirebaseReady, setIsFirebaseReady] = useState(false);
+            const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+            const [syncStatus, setSyncStatus] = useState('idle');
+            const [lastSyncTime, setLastSyncTime] = useState(null);
+            const isReceivingData = useRef(false);
+
+            // Backup Automático Local
             const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
             const backupIntervalRef = useRef(null);
 
@@ -245,17 +257,16 @@
                 if (!autoBackupEnabled) return;
                 const data = {
                     exportDate: new Date().toISOString(),
-                    version: '3.0',
+                    version: '5.0-firebase',
                     products, purchases, sales, customers, creditSales,
                     resellers, resellerStock, resellerSales, resellerReturns,
-                    stockAdjustments,
-                    config: { lowStockThreshold, expiryAlertDays, staleProductDays }
+                    stockAdjustments
                 };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `backup_automatico_${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `backup_boticario_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
             };
@@ -267,117 +278,79 @@
                 }
             }, [autoBackupEnabled, products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
 
-            // Estados de Modal
-            const [showProductModal, setShowProductModal] = useState(false);
-            const [showEditProductModal, setShowEditProductModal] = useState(false);
-            const [showSaleModal, setShowSaleModal] = useState(false);
-            const [showEditSaleModal, setShowEditSaleModal] = useState(false);
-            const [showCustomerModal, setShowCustomerModal] = useState(false);
-            const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
-            const [showCreditModal, setShowCreditModal] = useState(false);
-            const [showDeleteModal, setShowDeleteModal] = useState(false);
-            const [showResellerModal, setShowResellerModal] = useState(false);
-            const [showEditResellerModal, setShowEditResellerModal] = useState(false);
-            const [showTransferModal, setShowTransferModal] = useState(false);
-            const [showResellerSaleModal, setShowResellerSaleModal] = useState(false);
-            const [showReturnModal, setShowReturnModal] = useState(false);
-            const [showQuickBuyModal, setShowQuickBuyModal] = useState(false);
-            const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
-            const [showPurchaseHistoryModal, setShowPurchaseHistoryModal] = useState(false);
-            
-            // Estados para Edição
-            const [editingProduct, setEditingProduct] = useState(null);
-            const [editingSale, setEditingSale] = useState(null);
-            const [editingCustomer, setEditingCustomer] = useState(null);
-            const [editingReseller, setEditingReseller] = useState(null);
-            const [deleteItem, setDeleteItem] = useState(null);
-            const [selectedReseller, setSelectedReseller] = useState(null);
-            const [quickBuyProduct, setQuickBuyProduct] = useState(null);
-            const [adjustStockProduct, setAdjustStockProduct] = useState(null);
-            
-            // Filtros
-            const [customerSort, setCustomerSort] = useState('default');
-            const [productSearchTerm, setProductSearchTerm] = useState('');
-            const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
-            const [productStatusFilter, setProductStatusFilter] = useState('todos');
-            const [productExpiryFilter, setProductExpiryFilter] = useState('all');
-            const [productSortBy, setProductSortBy] = useState('name');
-            const [stockSearchTerm, setStockSearchTerm] = useState('');
-            const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
-            const [stockStatusFilter, setStockStatusFilter] = useState('todos');
-            const [stockExpiryFilter, setStockExpiryFilter] = useState('all');
-            const [stockSortBy, setStockSortBy] = useState('name');
-            const [purchaseHistorySearch, setPurchaseHistorySearch] = useState('');
-            const [purchaseHistoryDateFrom, setPurchaseHistoryDateFrom] = useState('');
-            const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
+            // ==================== FIREBASE: CARREGAR DADOS ====================
+            useEffect(() => {
+                if (!db || !firebaseConnected) {
+                    setIsFirebaseReady(true);
+                    return;
+                }
 
-            // Formulários
-            const [productForm, setProductForm] = useState({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
-            const [purchaseForm, setPurchaseForm] = useState({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
-            const [saleForm, setSaleForm] = useState({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
-            const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
-            const [creditForm, setCreditForm] = useState({ saleId: '', amount: 0, dueDate: '', status: 'pendente' });
-            const [resellerForm, setResellerForm] = useState({ name: '', salonName: '', address: '', phone: '', email: '', commissionRate: 25 });
-            const [transferForm, setTransferForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
-            const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
-            const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
-            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
-            const [adjustStockForm, setAdjustStockForm] = useState({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
-
-            // Configurações
-            const [lowStockThreshold, setLowStockThreshold] = useState(3);
-            const [expiryAlertDays, setExpiryAlertDays] = useState(30);
-            const [staleProductDays, setStaleProductDays] = useState(30);
-            
-            const fileInputRef = useRef(null);
-
-           // ==================== PERSISTÊNCIA NA NUVEM ====================
-            const isReceivingData = React.useRef(true);
-
-            // 1. ESCUTA O BANCO DE DADOS EM TEMPO REAL
-            React.useEffect(() => {
                 const unsubscribe = db.collection('app_boticario').doc('banco_principal').onSnapshot((doc) => {
                     if (doc.exists) {
                         const data = doc.data();
-                        
-                        // Pausa o salvamento automático enquanto a tela atualiza com os dados da nuvem
                         isReceivingData.current = true;
                         
                         if (data.products) setProducts(data.products);
-                        if (data.purchaseHistory) setPurchaseHistory(data.purchaseHistory);
+                        if (data.purchases) setPurchases(data.purchases);
                         if (data.sales) setSales(data.sales);
+                        if (data.customers) setCustomers(data.customers);
+                        if (data.creditSales) setCreditSales(data.creditSales);
                         if (data.resellers) setResellers(data.resellers);
+                        if (data.resellerStock) setResellerStock(data.resellerStock);
+                        if (data.resellerSales) setResellerSales(data.resellerSales);
+                        if (data.resellerReturns) setResellerReturns(data.resellerReturns);
+                        if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
                         
-                        // Reativa o "salvar automático" 1 segundo após o carregamento
+                        setLastSyncTime(new Date());
                         setTimeout(() => { isReceivingData.current = false; }, 1000);
-                    } else {
-                        isReceivingData.current = false; // Primeiro uso: permite criar o banco
                     }
+                    setIsFirebaseReady(true);
+                }, (error) => {
+                    console.error('Erro ao ouvir Firebase:', error);
+                    setIsFirebaseReady(true);
                 });
 
                 return () => unsubscribe();
             }, []);
 
-            // 2. SALVA AUTOMATICAMENTE NA NUVEM A QUALQUER MUDANÇA
-            React.useEffect(() => {
-                // Se estiver apenas recebendo dados do banco, não sobrescreve
-                if (isReceivingData.current) return;
+            // ==================== FIREBASE: SALVAR DADOS ====================
+            useEffect(() => {
+                if (!isFirebaseReady || !db || !cloudSyncEnabled || isReceivingData.current) return;
 
-                // Aqui usamos APENAS as variáveis que existem no seu aplicativo
                 const saveData = {
-                    products: products || [], 
-                    purchaseHistory: purchaseHistory || [], 
-                    sales: sales || [], 
-                    resellers: resellers || []
+                    products, purchases, sales, customers, creditSales,
+                    resellers, resellerStock, resellerSales, resellerReturns,
+                    stockAdjustments,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
 
+                setSyncStatus('syncing');
                 db.collection('app_boticario').doc('banco_principal').set(saveData)
-                    .then(() => console.log("✅ Dados salvos na nuvem com sucesso!"))
-                    .catch(error => console.error("❌ Erro ao sincronizar com a nuvem:", error));
-                    
-            }, [products, purchaseHistory, sales, resellers]);
-            // ===============================================================
+                    .then(() => {
+                        setSyncStatus('synced');
+                        setLastSyncTime(new Date());
+                    })
+                    .catch(error => {
+                        console.error('Erro ao salvar:', error);
+                        setSyncStatus('error');
+                    });
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, cloudSyncEnabled, isFirebaseReady]);
 
+            // ==================== PERSISTÊNCIA LOCAL ====================
+            useEffect(() => {
+                if (!isFirebaseReady) return;
+                
+                localStorage.setItem('boticario_products', JSON.stringify(products));
+                localStorage.setItem('boticario_purchases', JSON.stringify(purchases));
+                localStorage.setItem('boticario_sales', JSON.stringify(sales));
+                localStorage.setItem('boticario_customers', JSON.stringify(customers));
+                localStorage.setItem('boticario_creditSales', JSON.stringify(creditSales));
+                localStorage.setItem('boticario_resellers', JSON.stringify(resellers));
+                localStorage.setItem('boticario_resellerStock', JSON.stringify(resellerStock));
+                localStorage.setItem('boticario_resellerSales', JSON.stringify(resellerSales));
+                localStorage.setItem('boticario_resellerReturns', JSON.stringify(resellerReturns));
+                localStorage.setItem('boticario_stockAdjustments', JSON.stringify(stockAdjustments));
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, isFirebaseReady]);
 
             // ==================== CÁLCULOS ====================
             const calculateAveragePrice = (productId) => {
@@ -405,6 +378,65 @@
                 const totalReturned = resellerReturns.filter(r => r.resellerId === resellerId && r.productId === productId).reduce((sum, r) => sum + parseInt(r.quantity), 0);
                 return totalIn - totalSold - totalReturned;
             };
+
+            // Estados de Modal
+            const [showProductModal, setShowProductModal] = useState(false);
+            const [showEditProductModal, setShowEditProductModal] = useState(false);
+            const [showSaleModal, setShowSaleModal] = useState(false);
+            const [showEditSaleModal, setShowEditSaleModal] = useState(false);
+            const [showCustomerModal, setShowCustomerModal] = useState(false);
+            const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
+            const [showCreditModal, setShowCreditModal] = useState(false);
+            const [showDeleteModal, setShowDeleteModal] = useState(false);
+            const [showResellerModal, setShowResellerModal] = useState(false);
+            const [showEditResellerModal, setShowEditResellerModal] = useState(false);
+            const [showTransferModal, setShowTransferModal] = useState(false);
+            const [showResellerSaleModal, setShowResellerSaleModal] = useState(false);
+            const [showReturnModal, setShowReturnModal] = useState(false);
+            const [showQuickBuyModal, setShowQuickBuyModal] = useState(false);
+            const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
+            const [showPurchaseHistoryModal, setShowPurchaseHistoryModal] = useState(false);
+            
+            const [editingProduct, setEditingProduct] = useState(null);
+            const [editingSale, setEditingSale] = useState(null);
+            const [editingCustomer, setEditingCustomer] = useState(null);
+            const [editingReseller, setEditingReseller] = useState(null);
+            const [deleteItem, setDeleteItem] = useState(null);
+            const [selectedReseller, setSelectedReseller] = useState(null);
+            const [quickBuyProduct, setQuickBuyProduct] = useState(null);
+            const [adjustStockProduct, setAdjustStockProduct] = useState(null);
+            
+            const [customerSort, setCustomerSort] = useState('default');
+            const [productSearchTerm, setProductSearchTerm] = useState('');
+            const [productCategoryFilter, setProductCategoryFilter] = useState('todos');
+            const [productStatusFilter, setProductStatusFilter] = useState('todos');
+            const [productExpiryFilter, setProductExpiryFilter] = useState('all');
+            const [productSortBy, setProductSortBy] = useState('name');
+            const [stockSearchTerm, setStockSearchTerm] = useState('');
+            const [stockCategoryFilter, setStockCategoryFilter] = useState('todos');
+            const [stockStatusFilter, setStockStatusFilter] = useState('todos');
+            const [stockExpiryFilter, setStockExpiryFilter] = useState('all');
+            const [stockSortBy, setStockSortBy] = useState('name');
+            const [purchaseHistorySearch, setPurchaseHistorySearch] = useState('');
+            const [purchaseHistoryDateFrom, setPurchaseHistoryDateFrom] = useState('');
+            const [purchaseHistoryDateTo, setPurchaseHistoryDateTo] = useState('');
+
+            const [productForm, setProductForm] = useState({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
+            const [purchaseForm, setPurchaseForm] = useState({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
+            const [saleForm, setSaleForm] = useState({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
+            const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
+            const [creditForm, setCreditForm] = useState({ saleId: '', amount: 0, dueDate: '', status: 'pendente' });
+            const [resellerForm, setResellerForm] = useState({ name: '', salonName: '', address: '', phone: '', email: '', commissionRate: 25 });
+            const [transferForm, setTransferForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+            const [resellerSaleForm, setResellerSaleForm] = useState({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
+            const [returnForm, setReturnForm] = useState({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+            const [quickBuyForm, setQuickBuyForm] = useState({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
+            const [adjustStockForm, setAdjustStockForm] = useState({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
+
+            const [lowStockThreshold, setLowStockThreshold] = useState(3);
+            const [expiryAlertDays, setExpiryAlertDays] = useState(30);
+            const [staleProductDays, setStaleProductDays] = useState(30);
+            const fileInputRef = useRef(null);
 
             // ==================== FILTROS ====================
             const filterAndSortProducts = (productsList, searchTerm, categoryFilter, statusFilter, expiryFilter, sortBy) => {
@@ -707,7 +739,7 @@
             };
 
             const exportData = () => {
-                const data = { exportDate: new Date().toISOString(), version: '3.0', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
+                const data = { exportDate: new Date().toISOString(), version: '5.0-firebase', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -781,7 +813,6 @@
                             if (data.resellerSales) setResellerSales(data.resellerSales);
                             if (data.resellerReturns) setResellerReturns(data.resellerReturns);
                             if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
-                            if (data.config) { setLowStockThreshold(data.config.lowStockThreshold || 3); setExpiryAlertDays(data.config.expiryAlertDays || 30); setStaleProductDays(data.config.staleProductDays || 30); }
                             alert('✅ Importado!');
                             setActiveTab('dashboard');
                         }
@@ -793,9 +824,38 @@
 
             const triggerImport = () => { fileInputRef.current.click(); };
 
+            const handleCloudSyncToggle = () => {
+                if (!cloudSyncEnabled) {
+                    if (confirm('Ativar Cloud Sync?\n\nSeus dados serão salvos no Firebase automaticamente!\n\nIsso permite acessar de QUALQUER dispositivo!')) {
+                        setCloudSyncEnabled(true);
+                    }
+                } else {
+                    setCloudSyncEnabled(false);
+                }
+            };
+
+            const handleLoadFromCloud = () => {
+                if (confirm('Carregar da nuvem?\n\nSUBSTITUIRÁ dados atuais!')) {
+                    isReceivingData.current = true;
+                    setTimeout(() => { isReceivingData.current = false; }, 1000);
+                }
+            };
+
             const productOptions = useMemo(() => products.map(p => ({ value: p.id, label: p.name, stock: calculateStock(p.id), avgPrice: calculateAveragePrice(p.id) })), [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
             const customerOptions = useMemo(() => customers.map(c => ({ value: c.id, label: c.name, phone: c.phone || '' })), [customers]);
             const resellerOptions = useMemo(() => resellers.map(r => ({ value: r.id, label: r.name, salon: r.salonName })), [resellers]);
+
+            // Se Firebase não estiver pronto, mostra loading
+            if (!isFirebaseReady) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+                        <div className="text-center">
+                            <i className="fas fa-spinner fa-spin text-4xl text-purple-600 mb-4"></i>
+                            <p className="text-gray-600">Carregando...</p>
+                        </div>
+                    </div>
+                );
+            }
 
             // ==================== RENDER ====================
             return (
@@ -807,7 +867,13 @@
                         <div className="max-w-7xl mx-auto flex justify-between items-center flex-wrap gap-3">
                             <div>
                                 <h1 className="text-xl md:text-3xl font-bold"><i className="fas fa-store mr-3"></i>Gestão O Boticário</h1>
-                                <p className="text-white/80 mt-1 text-xs md:text-sm">Controle de vendas, estoque e revendedores</p>
+                                <p className="text-white/80 mt-1 text-xs md:text-sm">
+                                    {firebaseConnected ? (
+                                        <span><i className="fas fa-cloud mr-1"></i>Cloud: {syncStatus === 'synced' ? '✅ Sincronizado' : syncStatus === 'syncing' ? '🔄 Sincronizando...' : cloudSyncEnabled ? '⚠️ Erro' : '⚠️ Inativo'}</span>
+                                    ) : (
+                                        <span><i className="fas fa-database mr-1"></i>Local</span>
+                                    )}
+                                </p>
                             </div>
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={triggerImport} className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg transition text-sm">
@@ -1261,19 +1327,45 @@
                         {activeTab === 'config' && (
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gray-800">Configurações</h2>
+                                
+                                {firebaseConnected && (
+                                    <div className="bg-white rounded-lg shadow-md p-4 max-w-md mb-4">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-3"><i className="fas fa-cloud mr-2 text-purple-600"></i>Sincronização na Nuvem (Firebase)</h3>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div><p className="font-medium text-gray-700">Ativar Cloud Sync</p><p className="text-xs text-gray-500">Sincroniza celular e computador</p></div>
+                                            <button onClick={handleCloudSyncToggle} className={`relative w-14 h-7 rounded-full transition ${cloudSyncEnabled ? 'bg-green-500' : 'bg-gray-300'}`}><span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition ${cloudSyncEnabled ? 'transform translate-x-7' : ''}`}></span></button>
+                                        </div>
+                                        {cloudSyncEnabled && (
+                                            <div className="bg-green-50 border-l-4 border-green-500 p-3">
+                                                <p className="text-sm text-green-800"><i className="fas fa-check-circle mr-2"></i><strong>Ativo!</strong> {syncStatus === 'synced' ? 'Sincronizado' : syncStatus === 'syncing' ? 'Sincronizando...' : 'Erro'}</p>
+                                                {lastSyncTime && <p className="text-xs text-green-600 mt-1">Última sync: {formatDate(lastSyncTime)}</p>}
+                                            </div>
+                                        )}
+                                        <button onClick={handleLoadFromCloud} className="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition text-sm"><i className="fas fa-cloud-download-alt mr-2"></i>Carregar da Nuvem</button>
+                                    </div>
+                                )}
+                                
+                                {!firebaseConnected && (
+                                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 max-w-md mb-4">
+                                        <p className="text-sm text-yellow-800"><i className="fas fa-exclamation-triangle mr-2"></i><strong>Firebase não conectado!</strong></p>
+                                        <p className="text-xs text-yellow-600 mt-1">Verifique as regras do Firestore.</p>
+                                    </div>
+                                )}
+                                
                                 <div className="bg-white rounded-lg shadow-md p-4 max-w-md mb-4">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-3"><i className="fas fa-cloud-upload-alt mr-2 text-purple-600"></i>Backup Automático</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 mb-3"><i className="fas fa-cloud-upload-alt mr-2 text-purple-600"></i>Backup Automático Local</h3>
                                     <div className="flex items-center justify-between mb-3">
-                                        <div><p className="font-medium text-gray-700">Ativar Backup Automático</p><p className="text-xs text-gray-500">Backup a cada 5 minutos + ao fechar</p></div>
+                                        <div><p className="font-medium text-gray-700">Ativar Backup Automático</p><p className="text-xs text-gray-500">Backup a cada 5 minutos</p></div>
                                         <button onClick={() => setAutoBackupEnabled(!autoBackupEnabled)} className={`relative w-14 h-7 rounded-full transition ${autoBackupEnabled ? 'bg-green-500' : 'bg-gray-300'}`}><span className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition ${autoBackupEnabled ? 'transform translate-x-7' : ''}`}></span></button>
                                     </div>
                                     {autoBackupEnabled && (
                                         <div className="bg-green-50 border-l-4 border-green-500 p-3">
-                                            <p className="text-sm text-green-800"><i className="fas fa-check-circle mr-2"></i><strong>Ativo!</strong> Backup automático ativado.</p>
+                                            <p className="text-sm text-green-800"><i className="fas fa-check-circle mr-2"></i><strong>Ativo!</strong></p>
                                         </div>
                                     )}
                                     <button onClick={triggerAutoBackup} className="w-full mt-3 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition text-sm"><i className="fas fa-download mr-2"></i>Backup Agora</button>
                                 </div>
+                                
                                 <div className="bg-white rounded-lg shadow-md p-4 max-w-md">
                                     <div className="space-y-3">
                                         <div><label className="block text-gray-700 font-medium mb-2 text-sm">Limite de Estoque Baixo (unidades)</label><input type="number" value={lowStockThreshold} onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 3)} className="w-full border rounded-lg p-3 text-sm" /></div>
@@ -1286,550 +1378,11 @@
                         )}
                     </main>
 
-                    {/* ==================== TODOS OS MODALS ==================== */}
-                    
-                    {/* Modal Ajustar Stock */}
-                    <Modal isOpen={showAdjustStockModal} onClose={() => { setShowAdjustStockModal(false); setAdjustStockProduct(null); }} title="🔧 Ajustar Stock">
-                        <div className="space-y-4">
-                            {adjustStockProduct && (
-                                <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
-                                    <p className="font-bold">{adjustStockProduct.name}</p>
-                                    <p className="text-sm text-gray-600">Stock atual: {calculateStock(adjustStockProduct.id)} un.</p>
-                                </div>
-                            )}
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Tipo de Ajuste *</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button type="button" onClick={() => setAdjustStockForm({...adjustStockForm, type: 'entrada'})} className={`p-3 rounded-lg border-2 transition ${adjustStockForm.type === 'entrada' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
-                                        <i className="fas fa-plus-circle text-green-600 mr-2"></i><span className="font-medium">Entrada (+)</span>
-                                        <p className="text-xs text-gray-500 mt-1">Adicionar ao stock</p>
-                                    </button>
-                                    <button type="button" onClick={() => setAdjustStockForm({...adjustStockForm, type: 'saida'})} className={`p-3 rounded-lg border-2 transition ${adjustStockForm.type === 'saida' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
-                                        <i className="fas fa-minus-circle text-red-600 mr-2"></i><span className="font-medium">Saída (-)</span>
-                                        <p className="text-xs text-gray-500 mt-1">Remover do stock</p>
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Motivo *</label>
-                                <select value={adjustStockForm.reason} onChange={(e) => setAdjustStockForm({...adjustStockForm, reason: e.target.value})} className="w-full border rounded-lg p-3">
-                                    <option value="quebra">Quebra / Dano</option>
-                                    <option value="erro_compra">Erro na Compra</option>
-                                    <option value="perda">Perda / Extravio</option>
-                                    <option value="validade">Produto Vencido</option>
-                                    <option value="inventario">Ajuste de Inventário</option>
-                                    <option value="outro">Outro</option>
-                                </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input type="number" value={adjustStockForm.quantity} onChange={(e) => setAdjustStockForm({...adjustStockForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Data</label>
-                                    <input type="date" value={adjustStockForm.date} onChange={(e) => setAdjustStockForm({...adjustStockForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Observações</label>
-                                <textarea value={adjustStockForm.notes} onChange={(e) => setAdjustStockForm({...adjustStockForm, notes: e.target.value})} className="w-full border rounded-lg p-3" rows="3" placeholder="Descreva o motivo do ajuste..."></textarea>
-                            </div>
-                            <div className={`p-4 rounded-lg ${adjustStockForm.type === 'entrada' ? 'bg-green-50 border-l-4 border-green-500' : 'bg-red-50 border-l-4 border-red-500'}`}>
-                                <p className="font-bold">{adjustStockForm.type === 'entrada' ? '➕' : '➖'} Stock atual: {calculateStock(adjustStockProduct?.id || '')} un.</p>
-                                <p className="text-sm">{adjustStockForm.type === 'entrada' ? 'Novo stock: ' : 'Novo stock: '}<span className="font-bold">{adjustStockProduct ? (adjustStockForm.type === 'entrada' ? calculateStock(adjustStockProduct.id) + parseInt(adjustStockForm.quantity || 0) : calculateStock(adjustStockProduct.id) - parseInt(adjustStockForm.quantity || 0)) : 0} un.</span></p>
-                            </div>
-                            <button onClick={handleAdjustStock} className={`w-full py-3 rounded-lg transition text-white ${adjustStockForm.type === 'entrada' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                                <i className="fas fa-check mr-2"></i>Confirmar Ajuste
-                            </button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Compra Rápida */}
-                    <Modal isOpen={showQuickBuyModal} onClose={() => { setShowQuickBuyModal(false); setQuickBuyProduct(null); }} title="🛒 Compra Rápida">
-                        <div className="space-y-4">
-                            {quickBuyProduct && (
-                                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
-                                    <p className="font-bold">{quickBuyProduct.name}</p>
-                                    <p className="text-sm text-gray-600">Stock atual: {calculateStock(quickBuyProduct.id)} un. (Baixo!)</p>
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input type="number" value={quickBuyForm.quantity} onChange={(e) => setQuickBuyForm({...quickBuyForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Preço Unitário (€) *</label>
-                                    <input type="number" value={quickBuyForm.price} onChange={(e) => setQuickBuyForm({...quickBuyForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Compra</label>
-                                <input type="date" value={quickBuyForm.date} onChange={(e) => setQuickBuyForm({...quickBuyForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            {quickBuyForm.quantity && quickBuyForm.price && (
-                                <div className="p-4 bg-green-50 rounded-lg">
-                                    <p className="text-sm"><strong>Total:</strong> {formatCurrency(quickBuyForm.quantity * quickBuyForm.price)}</p>
-                                </div>
-                            )}
-                            <button onClick={handleQuickBuy} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-cart-plus mr-2"></i>Registrar Compra</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Transferir */}
-                    <Modal isOpen={showTransferModal} onClose={() => { setShowTransferModal(false); setSelectedReseller(null); }} title="🔄 Transferir para Revendedor">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-purple-50 rounded-lg border-l-4 border-purple-500">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
-                                </div>
-                            )}
-                            {transferForm.productId && (
-                                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
-                                    <p className="font-bold">{products.find(p => p.id === transferForm.productId)?.name}</p>
-                                    <p className="text-sm text-gray-600">Stock disponível: {calculateStock(transferForm.productId)} un.</p>
-                                </div>
-                            )}
-                            {!transferForm.productId && (
-                                <SearchableDropdown label="Produto *" options={productOptions} value={transferForm.productId} onChange={(value) => setTransferForm({...transferForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
-                            )}
-                            <SearchableDropdown label="Revendedor *" options={resellerOptions} value={transferForm.resellerId} onChange={(value) => setTransferForm({...transferForm, resellerId: value})} placeholder="Selecione o revendedor" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">{option.salon}</div></div>)} />
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                <input type="number" value={transferForm.quantity} onChange={(e) => setTransferForm({...transferForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Transferência</label>
-                                <input type="date" value={transferForm.date} onChange={(e) => setTransferForm({...transferForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => { setShowTransferModal(false); setSelectedReseller(null); setTransferForm({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] }); }} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg transition">
-                                    <i className="fas fa-times mr-2"></i>Cancelar
-                                </button>
-                                <button onClick={handleTransfer} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition">
-                                    <i className="fas fa-exchange-alt mr-2"></i>Transferir
-                                </button>
-                            </div>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Devolução */}
-                    <Modal isOpen={showReturnModal} onClose={() => { setShowReturnModal(false); setSelectedReseller(null); }} title="📦 Devolver Produtos">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-orange-50 rounded-lg border-l-4 border-orange-500">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
-                                </div>
-                            )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={returnForm.productId} onChange={(value) => setReturnForm({...returnForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                <input type="number" value={returnForm.quantity} onChange={(e) => setReturnForm({...returnForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Devolução</label>
-                                <input type="date" value={returnForm.date} onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleReturn} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg transition"><i className="fas fa-undo mr-2"></i>Devolver Produtos</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Venda Revendedor */}
-                    <Modal isOpen={showResellerSaleModal} onClose={() => { setShowResellerSaleModal(false); setSelectedReseller(null); }} title="💰 Registrar Venda do Revendedor">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-green-50 rounded-lg border-l-4 border-green-500">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">Comissão: {selectedReseller.commissionRate}%</p>
-                                </div>
-                            )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={resellerSaleForm.productId} onChange={(value) => setResellerSaleForm({...resellerSaleForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input type="number" value={resellerSaleForm.quantity} onChange={(e) => setResellerSaleForm({...resellerSaleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
-                                    <input type="number" value={resellerSaleForm.salePrice} onChange={(e) => setResellerSaleForm({...resellerSaleForm, salePrice: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
-                                <input type="date" value={resellerSaleForm.date} onChange={(e) => setResellerSaleForm({...resellerSaleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            {resellerSaleForm.salePrice && resellerSaleForm.quantity && selectedReseller && (
-                                <div className="p-4 bg-green-50 rounded-lg space-y-2">
-                                    <p className="text-sm"><strong>Total Venda:</strong> {formatCurrency(resellerSaleForm.salePrice * resellerSaleForm.quantity)}</p>
-                                    <p className="text-sm text-orange-600"><strong>Comissão ({selectedReseller.commissionRate}%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * (selectedReseller.commissionRate / 100))}</p>
-                                    <p className="text-sm text-green-600 font-bold"><strong>Seu Ganho (75%):</strong> {formatCurrency((resellerSaleForm.salePrice * resellerSaleForm.quantity) * ((100 - selectedReseller.commissionRate) / 100))}</p>
-                                </div>
-                            )}
-                            <button onClick={handleResellerSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Novo Produto */}
-                    <Modal isOpen={showProductModal} onClose={() => setShowProductModal(false)} title="Novo Produto">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Produto *</label>
-                                <input type="text" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Lily Eau de Parfum" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Categoria</label>
-                                    <select value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full border rounded-lg p-3">
-                                        <option value="perfumaria">Perfumaria</option>
-                                        <option value="corpo">Corpo e Banho</option>
-                                        <option value="maquiagem">Maquiagem</option>
-                                        <option value="cabelo">Cabelo</option>
-                                        <option value="acessorios">Acessórios</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (€)</label>
-                                    <input type="number" value={productForm.catalogPrice} onChange={(e) => setProductForm({...productForm, catalogPrice: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: 45,90" step="0.01" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Fragrância</label>
-                                    <input type="text" value={productForm.fragrance} onChange={(e) => setProductForm({...productForm, fragrance: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Floral" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Ciclo O Boticário</label>
-                                    <input type="text" value={productForm.cycle} onChange={(e) => setProductForm({...productForm, cycle: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Ciclo 12/2024" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data de Validade</label>
-                                <input type="date" value={productForm.expiryDate} onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleAddProduct} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Produto</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Editar Produto */}
-                    <Modal isOpen={showEditProductModal} onClose={() => { setShowEditProductModal(false); setEditingProduct(null); }} title="Editar Produto">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Produto *</label>
-                                <input type="text" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Categoria</label>
-                                    <select value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full border rounded-lg p-3">
-                                        <option value="perfumaria">Perfumaria</option>
-                                        <option value="corpo">Corpo e Banho</option>
-                                        <option value="maquiagem">Maquiagem</option>
-                                        <option value="cabelo">Cabelo</option>
-                                        <option value="acessorios">Acessórios</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">💰 Preço Catálogo (€)</label>
-                                    <input type="number" value={productForm.catalogPrice} onChange={(e) => setProductForm({...productForm, catalogPrice: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data de Validade</label>
-                                <input type="date" value={productForm.expiryDate} onChange={(e) => setProductForm({...productForm, expiryDate: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleEditProduct} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Produto</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Nova Venda */}
-                    <Modal isOpen={showSaleModal} onClose={() => setShowSaleModal(false)} title="Nova Venda">
-                        <div className="space-y-4">
-                            <SearchableDropdown label="Produto *" options={productOptions} value={saleForm.productId} onChange={(value) => setSaleForm({...saleForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
-                            <SearchableDropdown label="Cliente" options={customerOptions} value={saleForm.customerId} onChange={(value) => setSaleForm({...saleForm, customerId: value})} placeholder="Não informado" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input type="number" value={saleForm.quantity} onChange={(e) => setSaleForm({...saleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
-                                    <input type="number" value={saleForm.price} onChange={(e) => setSaleForm({...saleForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Método de Pagamento</label>
-                                <select value={saleForm.paymentMethod} onChange={(e) => setSaleForm({...saleForm, paymentMethod: e.target.value})} className="w-full border rounded-lg p-3">
-                                    <option value="bizum">Bizum</option>
-                                    <option value="dinheiro">Dinheiro</option>
-                                    <option value="cartao">Cartão</option>
-                                    <option value="transferencia">Transferência</option>
-                                    <option value="credito">Fiado/Crédito</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
-                                <input type="date" value={saleForm.date} onChange={(e) => setSaleForm({...saleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleAddSale} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition"><i className="fas fa-check mr-2"></i>Registrar Venda</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Editar Venda */}
-                    <Modal isOpen={showEditSaleModal} onClose={() => { setShowEditSaleModal(false); setEditingSale(null); }} title="Editar Venda">
-                        <div className="space-y-4">
-                            <div className="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
-                                <p className="text-yellow-800 text-sm"><i className="fas fa-info-circle mr-2"></i>Editando venda de {formatDate(editingSale?.date)}</p>
-                            </div>
-                            <SearchableDropdown label="Produto *" options={productOptions} value={saleForm.productId} onChange={(value) => setSaleForm({...saleForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div><div className="text-xs text-gray-500">Stock: {option.stock} un.</div></div>)} />
-                            <SearchableDropdown label="Cliente" options={customerOptions} value={saleForm.customerId} onChange={(value) => setSaleForm({...saleForm, customerId: value})} placeholder="Não informado" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                    <input type="number" value={saleForm.quantity} onChange={(e) => setSaleForm({...saleForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Preço de Venda (€) *</label>
-                                    <input type="number" value={saleForm.price} onChange={(e) => setSaleForm({...saleForm, price: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Método de Pagamento</label>
-                                <select value={saleForm.paymentMethod} onChange={(e) => setSaleForm({...saleForm, paymentMethod: e.target.value})} className="w-full border rounded-lg p-3">
-                                    <option value="bizum">Bizum</option>
-                                    <option value="dinheiro">Dinheiro</option>
-                                    <option value="cartao">Cartão</option>
-                                    <option value="transferencia">Transferência</option>
-                                    <option value="credito">Fiado/Crédito</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Venda</label>
-                                <input type="date" value={saleForm.date} onChange={(e) => setSaleForm({...saleForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleEditSale} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Venda</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Novo Cliente */}
-                    <Modal isOpen={showCustomerModal} onClose={() => setShowCustomerModal(false)} title="Novo Cliente">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome *</label>
-                                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({...customerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input type="email" value={customerForm.email} onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleAddCustomer} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Cliente</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Editar Cliente */}
-                    <Modal isOpen={showEditCustomerModal} onClose={() => { setShowEditCustomerModal(false); setEditingCustomer(null); }} title="Editar Cliente">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome *</label>
-                                <input type="text" value={customerForm.name} onChange={(e) => setCustomerForm({...customerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                <input type="tel" value={customerForm.phone} onChange={(e) => setCustomerForm({...customerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input type="email" value={customerForm.email} onChange={(e) => setCustomerForm({...customerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleEditCustomer} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Cliente</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Novo Revendedor */}
-                    <Modal isOpen={showResellerModal} onClose={() => setShowResellerModal(false)} title="Novo Revendedor">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Contato *</label>
-                                <input type="text" value={resellerForm.name} onChange={(e) => setResellerForm({...resellerForm, name: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Maria Silva" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Salão *</label>
-                                <input type="text" value={resellerForm.salonName} onChange={(e) => setResellerForm({...resellerForm, salonName: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Beauty Salon" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Endereço</label>
-                                <input type="text" value={resellerForm.address} onChange={(e) => setResellerForm({...resellerForm, address: e.target.value})} className="w-full border rounded-lg p-3" placeholder="Ex: Rua das Flores, 123" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                    <input type="tel" value={resellerForm.phone} onChange={(e) => setResellerForm({...resellerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" placeholder="+351 000 000 000" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Comissão (%)</label>
-                                    <input type="number" value={resellerForm.commissionRate} onChange={(e) => setResellerForm({...resellerForm, commissionRate: e.target.value})} className="w-full border rounded-lg p-3" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleAddReseller} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Salvar Revendedor</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Editar Revendedor */}
-                    <Modal isOpen={showEditResellerModal} onClose={() => { setShowEditResellerModal(false); setEditingReseller(null); }} title="Editar Revendedor">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Contato *</label>
-                                <input type="text" value={resellerForm.name} onChange={(e) => setResellerForm({...resellerForm, name: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Nome do Salão *</label>
-                                <input type="text" value={resellerForm.salonName} onChange={(e) => setResellerForm({...resellerForm, salonName: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Endereço</label>
-                                <input type="text" value={resellerForm.address} onChange={(e) => setResellerForm({...resellerForm, address: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Telefone</label>
-                                    <input type="tel" value={resellerForm.phone} onChange={(e) => setResellerForm({...resellerForm, phone: e.target.value})} className="w-full border rounded-lg p-3" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-medium mb-2">Comissão (%)</label>
-                                    <input type="number" value={resellerForm.commissionRate} onChange={(e) => setResellerForm({...resellerForm, commissionRate: e.target.value})} className="w-full border rounded-lg p-3" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Email</label>
-                                <input type="email" value={resellerForm.email} onChange={(e) => setResellerForm({...resellerForm, email: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleEditReseller} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Atualizar Revendedor</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Fiado */}
-                    <Modal isOpen={showCreditModal} onClose={() => setShowCreditModal(false)} title="Registro de Fiado">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Valor (€) *</label>
-                                <input type="number" value={creditForm.amount} onChange={(e) => setCreditForm({...creditForm, amount: e.target.value})} className="w-full border rounded-lg p-3" step="0.01" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data de Vencimento *</label>
-                                <input type="date" value={creditForm.dueDate} onChange={(e) => setCreditForm({...creditForm, dueDate: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleAddCredit} className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-3 rounded-lg transition"><i className="fas fa-save mr-2"></i>Registrar Fiado</button>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Confirmar Exclusão */}
-                    <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setDeleteItem(null); }} title="Confirmar Exclusão">
-                        <div className="space-y-4">
-                            <div className="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
-                                <p className="text-red-800 font-bold"><i className="fas fa-exclamation-triangle mr-2"></i>Atenção!</p>
-                                <p className="text-red-700 mt-2">{deleteItem?.type === 'product' ? `Excluir produto "${deleteItem?.name}"?` : deleteItem?.type === 'customer' ? `Excluir cliente "${deleteItem?.name}"?` : deleteItem?.type === 'reseller' ? `Excluir revendedor "${deleteItem?.name}"?` : 'Excluir este item?'}</p>
-                                <p className="text-red-600 text-sm mt-2">Esta ação não pode ser desfeita!</p>
-                            </div>
-                            <div className="flex gap-3">
-                                <button onClick={() => { setShowDeleteModal(false); setDeleteItem(null); }} className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 rounded-lg transition">
-                                    <i className="fas fa-times mr-2"></i>Cancelar
-                                </button>
-                                <button onClick={deleteItem?.type === 'product' ? handleDeleteProduct : deleteItem?.type === 'customer' ? handleDeleteCustomer : deleteItem?.type === 'reseller' ? handleDeleteReseller : handleDeleteSale} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg transition">
-                                    <i className="fas fa-trash mr-2"></i>Excluir
-                                </button>
-                            </div>
-                        </div>
-                    </Modal>
-
-                    {/* Modal Histórico de Compras */}
-                    <Modal isOpen={showPurchaseHistoryModal} onClose={() => setShowPurchaseHistoryModal(false)} title="📜 Histórico de Compras">
-                        <div className="space-y-4">
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <h4 className="font-bold mb-3"><i className="fas fa-filter mr-2"></i>Filtros</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div>
-                                        <label className="block text-gray-700 font-medium mb-2 text-sm">Buscar Produto</label>
-                                        <input type="text" value={purchaseHistorySearch} onChange={(e) => setPurchaseHistorySearch(e.target.value)} className="w-full border rounded-lg p-2 text-sm" placeholder="Nome do produto..." />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-700 font-medium mb-2 text-sm">Data Inicial</label>
-                                        <input type="date" value={purchaseHistoryDateFrom} onChange={(e) => setPurchaseHistoryDateFrom(e.target.value)} className="w-full border rounded-lg p-2 text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-700 font-medium mb-2 text-sm">Data Final</label>
-                                        <input type="date" value={purchaseHistoryDateTo} onChange={(e) => setPurchaseHistoryDateTo(e.target.value)} className="w-full border rounded-lg p-2 text-sm" />
-                                    </div>
-                                </div>
-                                <div className="mt-3 flex gap-2">
-                                    <button onClick={() => { setPurchaseHistorySearch(''); setPurchaseHistoryDateFrom(''); setPurchaseHistoryDateTo(''); }} className="text-sm text-purple-600 hover:underline"><i className="fas fa-eraser mr-1"></i>Limpar Filtros</button>
-                                    <button onClick={exportPurchaseHistory} className="text-sm text-green-600 hover:underline"><i className="fas fa-file-csv mr-1"></i>Exportar CSV</button>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                    <p className="text-sm text-gray-600">Total de Compras</p>
-                                    <p className="text-2xl font-bold text-blue-600">{filteredPurchaseHistory.length}</p>
-                                </div>
-                                <div className="bg-green-50 p-4 rounded-lg">
-                                    <p className="text-sm text-gray-600">Total Investido</p>
-                                    <p className="text-2xl font-bold text-green-600">{formatCurrency(filteredPurchaseHistory.reduce((sum, p) => sum + (p.price * p.quantity), 0))}</p>
-                                </div>
-                                <div className="bg-purple-50 p-4 rounded-lg">
-                                    <p className="text-sm text-gray-600">Período</p>
-                                    <p className="text-sm font-bold text-purple-600">{purchaseHistoryDateFrom ? formatDate(purchaseHistoryDateFrom) : 'Início'} - {purchaseHistoryDateTo ? formatDate(purchaseHistoryDateTo) : 'Hoje'}</p>
-                                </div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="p-3 text-left">Data</th>
-                                            <th className="p-3 text-left">Produto</th>
-                                            <th className="p-3 text-center">Qtd</th>
-                                            <th className="p-3 text-left">Preço Unit.</th>
-                                            <th className="p-3 text-left">Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredPurchaseHistory.map(p => {
-                                            const product = products.find(prod => prod.id === p.productId);
-                                            return (
-                                                <tr key={p.id} className="border-t">
-                                                    <td className="p-3">{formatDate(p.date)}</td>
-                                                    <td className="p-3 font-medium">{product?.name || 'Produto removido'}</td>
-                                                    <td className="p-3 text-center">{p.quantity}</td>
-                                                    <td className="p-3">{formatCurrency(p.price)}</td>
-                                                    <td className="p-3 font-bold">{formatCurrency(p.price * p.quantity)}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                                {filteredPurchaseHistory.length === 0 && (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <i className="fas fa-inbox text-4xl mb-3"></i>
-                                        <p>Nenhuma compra encontrada com estes filtros</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </Modal>
-
                     {/* Footer */}
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">Versão Estável • Todos Botões Funcionando • {new Date().getFullYear()}</p>
+                            <p className="text-gray-500 text-sm mt-2">{firebaseConnected ? <span><i className="fas fa-cloud mr-1"></i>Firebase Cloud Sync • {cloudSyncEnabled ? '✅ Ativo' : '⚠️ Inativo'}</span> : <span><i className="fas fa-database mr-1"></i>Armazenamento Local</span>} • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
@@ -1840,4 +1393,3 @@
     </script>
 </body>
 </html>
-
