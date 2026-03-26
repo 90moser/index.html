@@ -1,13 +1,33 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
+    <!-- PWA / App Mobile -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#667eea">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="O Boticário">
+
+<!-- Ícones para iOS -->
+<link rel="apple-touch-icon" sizes="180x180" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+
+<!-- Ícones para Android -->
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
+<!-- Manifesto PWA -->
+<link rel="manifest" href="manifest.json">
+    <meta charset="UTF-8">react
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestão Revenda O Boticário</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .boticario-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
@@ -43,6 +63,21 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
+// INICIALIZA O FIREBASE
+    const firebaseConfig = {
+      apiKey: "AIzaSyDAZJP5PVjj-iRGKoiR22-M2EBzp61OaDA",
+      authDomain: "gestaorevenda-f4334.firebaseapp.com",
+      projectId: "gestaorevenda-f4334",
+      storageBucket: "gestaorevenda-f4334.firebasestorage.app",
+      messagingSenderId: "893230315835",
+      appId: "1:893230315835:web:15fe289a91fb1da42b1f1e"
+    };
+
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
 
         // ==================== UTILITÁRIOS ====================
         const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -210,16 +245,17 @@
                 if (!autoBackupEnabled) return;
                 const data = {
                     exportDate: new Date().toISOString(),
-                    version: '5.0-fix',
+                    version: '3.0',
                     products, purchases, sales, customers, creditSales,
                     resellers, resellerStock, resellerSales, resellerReturns,
-                    stockAdjustments
+                    stockAdjustments,
+                    config: { lowStockThreshold, expiryAlertDays, staleProductDays }
                 };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `backup_boticario_${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `backup_automatico_${new Date().toISOString().split('T')[0]}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
             };
@@ -230,65 +266,6 @@
                     return () => clearInterval(backupIntervalRef.current);
                 }
             }, [autoBackupEnabled, products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
-
-            // ==================== PERSISTÊNCIA LOCALSTORAGE (CORRIGIDO) ====================
-            useEffect(() => {
-                console.log('🔄 Carregando dados do localStorage...');
-                
-                const loadData = (key, defaultValue = []) => {
-                    try {
-                        const data = localStorage.getItem(`boticario_${key}`);
-                        return data ? JSON.parse(data) : defaultValue;
-                    } catch (error) {
-                        console.error(`Erro ao carregar ${key}:`, error);
-                        return defaultValue;
-                    }
-                };
-
-                setProducts(loadData('products', []));
-                setPurchases(loadData('purchases', []));
-                setSales(loadData('sales', []));
-                setCustomers(loadData('customers', []));
-                setCreditSales(loadData('creditSales', []));
-                setResellers(loadData('resellers', []));
-                setResellerStock(loadData('resellerStock', []));
-                setResellerSales(loadData('resellerSales', []));
-                setResellerReturns(loadData('resellerReturns', []));
-                setStockAdjustments(loadData('stockAdjustments', []));
-                
-                const config = localStorage.getItem('boticario_config');
-                if (config) {
-                    try {
-                        const cfg = JSON.parse(config);
-                        if (cfg.lowStockThreshold) setLowStockThreshold(cfg.lowStockThreshold);
-                        if (cfg.expiryAlertDays) setExpiryAlertDays(cfg.expiryAlertDays);
-                        if (cfg.staleProductDays) setStaleProductDays(cfg.staleProductDays);
-                    } catch (error) {
-                        console.error('Erro ao carregar config:', error);
-                    }
-                }
-                
-                console.log('✅ Dados carregados!');
-            }, []);
-
-            // Salvar no localStorage SEMPRE que mudar
-            useEffect(() => {
-                try {
-                    localStorage.setItem('boticario_products', JSON.stringify(products));
-                    localStorage.setItem('boticario_purchases', JSON.stringify(purchases));
-                    localStorage.setItem('boticario_sales', JSON.stringify(sales));
-                    localStorage.setItem('boticario_customers', JSON.stringify(customers));
-                    localStorage.setItem('boticario_creditSales', JSON.stringify(creditSales));
-                    localStorage.setItem('boticario_resellers', JSON.stringify(resellers));
-                    localStorage.setItem('boticario_resellerStock', JSON.stringify(resellerStock));
-                    localStorage.setItem('boticario_resellerSales', JSON.stringify(resellerSales));
-                    localStorage.setItem('boticario_resellerReturns', JSON.stringify(resellerReturns));
-                    localStorage.setItem('boticario_stockAdjustments', JSON.stringify(stockAdjustments));
-                    console.log('💾 Dados salvos no localStorage');
-                } catch (error) {
-                    console.error('Erro ao salvar:', error);
-                }
-            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
 
             // Estados de Modal
             const [showProductModal, setShowProductModal] = useState(false);
@@ -351,7 +328,69 @@
             const [lowStockThreshold, setLowStockThreshold] = useState(3);
             const [expiryAlertDays, setExpiryAlertDays] = useState(30);
             const [staleProductDays, setStaleProductDays] = useState(30);
+            
             const fileInputRef = useRef(null);
+
+          // ==================== A MÁGICA DA NUVEM (FIREBASE) ====================
+            const isReceivingData = useRef(true);
+
+            useEffect(() => {
+                const unsubscribe = db.collection('app_boticario').doc('banco_principal').onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        
+                        // Pausa o salvamento enquanto atualiza a tela
+                        isReceivingData.current = true;
+                        
+                        // CARREGA TODAS AS SUAS 10 TABELAS DO BANCO
+                        if (data.products) setProducts(data.products);
+                        if (data.purchases) setPurchases(data.purchases);
+                        if (data.sales) setSales(data.sales);
+                        if (data.customers) setCustomers(data.customers);
+                        if (data.creditSales) setCreditSales(data.creditSales);
+                        if (data.resellers) setResellers(data.resellers);
+                        if (data.resellerStock) setResellerStock(data.resellerStock);
+                        if (data.resellerSales) setResellerSales(data.resellerSales);
+                        if (data.resellerReturns) setResellerReturns(data.resellerReturns);
+                        if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
+                        
+                        // Reativa o "salvar automático" após 1 segundo
+                        setTimeout(() => { isReceivingData.current = false; }, 1000);
+                    } else {
+                        isReceivingData.current = false;
+                    }
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                // Se estiver apenas recebendo dados, não sobrescreve
+                if (isReceivingData.current) return;
+
+                // SALVA TODAS AS SUAS 10 TABELAS NA NUVEM
+                const saveData = {
+                    products: products || [],
+                    purchases: purchases || [],
+                    sales: sales || [],
+                    customers: customers || [],
+                    creditSales: creditSales || [],
+                    resellers: resellers || [],
+                    resellerStock: resellerStock || [],
+                    resellerSales: resellerSales || [],
+                    resellerReturns: resellerReturns || [],
+                    stockAdjustments: stockAdjustments || []
+                };
+
+                db.collection('app_boticario').doc('banco_principal').set(saveData)
+                    .then(() => console.log("Nuvem atualizada com sucesso!"))
+                    .catch(error => console.error("Erro na nuvem:", error));
+                    
+            }, [products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
+            // ==================== FIM DA CONFIGURAÇÃO DA NUVEM ====================
+
+            // ===============================================================
+
 
             // ==================== CÁLCULOS ====================
             const calculateAveragePrice = (productId) => {
@@ -497,16 +536,14 @@
             // ==================== HANDLERS ====================
             const handleAddProduct = () => {
                 if (!productForm.name) { alert('Nome obrigatório!'); return; }
-                const newProduct = { id: generateId(), ...productForm, catalogPrice: parseFloat(productForm.catalogPrice) || 0, createdAt: new Date().toISOString() };
-                setProducts([...products, newProduct]);
+                setProducts([...products, { id: generateId(), ...productForm, catalogPrice: parseFloat(productForm.catalogPrice) || 0, createdAt: new Date().toISOString() }]);
                 setProductForm({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
                 setShowProductModal(false);
             };
 
             const handleEditProduct = () => {
                 if (!editingProduct || !productForm.name) { alert('Nome obrigatório!'); return; }
-                const updatedProducts = products.map(p => p.id === editingProduct.id ? { ...p, ...productForm, catalogPrice: parseFloat(productForm.catalogPrice) || 0 } : p);
-                setProducts(updatedProducts);
+                setProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...productForm, catalogPrice: parseFloat(productForm.catalogPrice) || 0 } : p));
                 setEditingProduct(null);
                 setProductForm({ name: '', category: 'perfumaria', fragrance: '', expiryDate: '', cycle: '', catalogPrice: '' });
                 setShowEditProductModal(false);
@@ -527,16 +564,14 @@
 
             const handleAddCustomer = () => {
                 if (!customerForm.name) { alert('Nome obrigatório!'); return; }
-                const newCustomer = { id: generateId(), ...customerForm, createdAt: new Date().toISOString() };
-                setCustomers([...customers, newCustomer]);
+                setCustomers([...customers, { id: generateId(), ...customerForm, createdAt: new Date().toISOString() }]);
                 setCustomerForm({ name: '', phone: '', email: '' });
                 setShowCustomerModal(false);
             };
 
             const handleEditCustomer = () => {
                 if (!editingCustomer || !customerForm.name) { alert('Nome obrigatório!'); return; }
-                const updatedCustomers = customers.map(c => c.id === editingCustomer.id ? { ...c, ...customerForm } : c);
-                setCustomers(updatedCustomers);
+                setCustomers(customers.map(c => c.id === editingCustomer.id ? { ...c, ...customerForm } : c));
                 setEditingCustomer(null);
                 setCustomerForm({ name: '', phone: '', email: '' });
                 setShowEditCustomerModal(false);
@@ -557,16 +592,14 @@
 
             const handleAddReseller = () => {
                 if (!resellerForm.name || !resellerForm.salonName) { alert('Nome e Salão obrigatórios!'); return; }
-                const newReseller = { id: generateId(), ...resellerForm, commissionRate: parseFloat(resellerForm.commissionRate) || 25, createdAt: new Date().toISOString(), status: 'ativo' };
-                setResellers([...resellers, newReseller]);
+                setResellers([...resellers, { id: generateId(), ...resellerForm, commissionRate: parseFloat(resellerForm.commissionRate) || 25, createdAt: new Date().toISOString(), status: 'ativo' }]);
                 setResellerForm({ name: '', salonName: '', address: '', phone: '', email: '', commissionRate: 25 });
                 setShowResellerModal(false);
             };
 
             const handleEditReseller = () => {
                 if (!editingReseller || !resellerForm.name) { alert('Nome obrigatório!'); return; }
-                const updatedResellers = resellers.map(r => r.id === editingReseller.id ? { ...r, ...resellerForm, commissionRate: parseFloat(resellerForm.commissionRate) || 25 } : r);
-                setResellers(updatedResellers);
+                setResellers(resellers.map(r => r.id === editingReseller.id ? { ...r, ...resellerForm, commissionRate: parseFloat(resellerForm.commissionRate) || 25 } : r));
                 setEditingReseller(null);
                 setResellerForm({ name: '', salonName: '', address: '', phone: '', email: '', commissionRate: 25 });
                 setShowEditResellerModal(false);
@@ -588,8 +621,7 @@
             const handleTransfer = () => {
                 if (!transferForm.resellerId || !transferForm.productId || transferForm.quantity <= 0) { alert('Dados inválidos!'); return; }
                 if (calculateStock(transferForm.productId) < transferForm.quantity) { alert('Estoque insuficiente!'); return; }
-                const newTransfer = { id: generateId(), ...transferForm, quantity: parseInt(transferForm.quantity), date: transferForm.date || new Date().toISOString().split('T')[0] };
-                setResellerStock([...resellerStock, newTransfer]);
+                setResellerStock([...resellerStock, { id: generateId(), ...transferForm, quantity: parseInt(transferForm.quantity), date: transferForm.date || new Date().toISOString().split('T')[0] }]);
                 setTransferForm({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
                 setShowTransferModal(false);
             };
@@ -599,8 +631,7 @@
                 if (calculateResellerStock(resellerSaleForm.resellerId, resellerSaleForm.productId) < resellerSaleForm.quantity) { alert('Estoque insuficiente!'); return; }
                 const reseller = resellers.find(r => r.id === resellerSaleForm.resellerId);
                 const totalSale = parseFloat(resellerSaleForm.salePrice) * parseInt(resellerSaleForm.quantity);
-                const newSale = { id: generateId(), ...resellerSaleForm, quantity: parseInt(resellerSaleForm.quantity), salePrice: parseFloat(resellerSaleForm.salePrice), totalSale, commission: totalSale * (reseller.commissionRate / 100), yourEarnings: totalSale * ((100 - reseller.commissionRate) / 100), date: resellerSaleForm.date || new Date().toISOString().split('T')[0] };
-                setResellerSales([...resellerSales, newSale]);
+                setResellerSales([...resellerSales, { id: generateId(), ...resellerSaleForm, quantity: parseInt(resellerSaleForm.quantity), salePrice: parseFloat(resellerSaleForm.salePrice), totalSale, commission: totalSale * (reseller.commissionRate / 100), yourEarnings: totalSale * ((100 - reseller.commissionRate) / 100), date: resellerSaleForm.date || new Date().toISOString().split('T')[0] }]);
                 setResellerSaleForm({ resellerId: '', productId: '', quantity: 1, salePrice: 0, date: new Date().toISOString().split('T')[0] });
                 setShowResellerSaleModal(false);
             };
@@ -608,8 +639,7 @@
             const handleReturn = () => {
                 if (!returnForm.resellerId || !returnForm.productId || returnForm.quantity <= 0) { alert('Dados inválidos!'); return; }
                 if (calculateResellerStock(returnForm.resellerId, returnForm.productId) < returnForm.quantity) { alert('Estoque insuficiente!'); return; }
-                const newReturn = { id: generateId(), ...returnForm, quantity: parseInt(returnForm.quantity), date: returnForm.date || new Date().toISOString().split('T')[0] };
-                setResellerReturns([...resellerReturns, newReturn]);
+                setResellerReturns([...resellerReturns, { id: generateId(), ...returnForm, quantity: parseInt(returnForm.quantity), date: returnForm.date || new Date().toISOString().split('T')[0] }]);
                 setReturnForm({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
                 setShowReturnModal(false);
             };
@@ -629,15 +659,7 @@
 
             const handleEditSale = () => {
                 if (!editingSale || !saleForm.productId || saleForm.quantity <= 0) { alert('Dados inválidos!'); return; }
-                const updatedSales = sales.map(s => {
-                    if (s.id === editingSale.id) {
-                        const newQuantity = parseInt(saleForm.quantity);
-                        const newPrice = parseFloat(saleForm.price);
-                        return { ...s, ...saleForm, quantity: newQuantity, price: newPrice, profit: (newPrice - calculateAveragePrice(saleForm.productId)) * newQuantity };
-                    }
-                    return s;
-                });
-                setSales(updatedSales);
+                setSales(sales.map(s => s.id === editingSale.id ? { ...s, ...saleForm, quantity: parseInt(saleForm.quantity), price: parseFloat(saleForm.price), profit: (parseFloat(saleForm.price) - calculateAveragePrice(saleForm.productId)) * parseInt(saleForm.quantity) } : s));
                 setEditingSale(null);
                 setSaleForm({ productId: '', customerId: '', quantity: 1, price: 0, paymentMethod: 'bizum', date: new Date().toISOString().split('T')[0] });
                 setShowEditSaleModal(false);
@@ -654,15 +676,13 @@
 
             const handleAddPurchase = () => {
                 if (!purchaseForm.productId || purchaseForm.quantity <= 0) { alert('Produto e quantidade obrigatórios!'); return; }
-                const newPurchase = { id: generateId(), ...purchaseForm, quantity: parseInt(purchaseForm.quantity), price: parseFloat(purchaseForm.price) };
-                setPurchases([...purchases, newPurchase]);
+                setPurchases([...purchases, { id: generateId(), ...purchaseForm, quantity: parseInt(purchaseForm.quantity), price: parseFloat(purchaseForm.price) }]);
                 setPurchaseForm({ productId: '', quantity: 1, price: 0, date: new Date().toISOString().split('T')[0] });
             };
 
             const handleAddCredit = () => {
                 if (!creditForm.saleId || creditForm.amount <= 0) { alert('Dados inválidos!'); return; }
-                const newCredit = { id: generateId(), ...creditForm, amount: parseFloat(creditForm.amount), createdAt: new Date().toISOString() };
-                setCreditSales([...creditSales, newCredit]);
+                setCreditSales([...creditSales, { id: generateId(), ...creditForm, amount: parseFloat(creditForm.amount), createdAt: new Date().toISOString() }]);
                 setCreditForm({ saleId: '', amount: 0, dueDate: '', status: 'pendente' });
                 setShowCreditModal(false);
             };
@@ -671,8 +691,7 @@
 
             const handleAdjustStock = () => {
                 if (!adjustStockProduct || !adjustStockForm.quantity || adjustStockForm.quantity <= 0) { alert('Dados inválidos!'); return; }
-                const adjustment = { id: generateId(), productId: adjustStockProduct.id, productName: adjustStockProduct.name, ...adjustStockForm, quantity: parseInt(adjustStockForm.quantity), date: adjustStockForm.date || new Date().toISOString().split('T')[0], createdAt: new Date().toISOString() };
-                setStockAdjustments([...stockAdjustments, adjustment]);
+                setStockAdjustments([...stockAdjustments, { id: generateId(), productId: adjustStockProduct.id, productName: adjustStockProduct.name, ...adjustStockForm, quantity: parseInt(adjustStockForm.quantity), date: adjustStockForm.date || new Date().toISOString().split('T')[0], createdAt: new Date().toISOString() }]);
                 setAdjustStockProduct(null);
                 setAdjustStockForm({ type: 'saida', reason: 'quebra', quantity: 1, notes: '', date: new Date().toISOString().split('T')[0] });
                 setShowAdjustStockModal(false);
@@ -693,8 +712,7 @@
 
             const handleQuickBuy = () => {
                 if (!quickBuyProduct || quickBuyForm.quantity <= 0 || quickBuyForm.price <= 0) { alert('Dados inválidos!'); return; }
-                const newPurchase = { id: generateId(), productId: quickBuyProduct.id, quantity: parseInt(quickBuyForm.quantity), price: parseFloat(quickBuyForm.price), date: quickBuyForm.date || new Date().toISOString().split('T')[0] };
-                setPurchases([...purchases, newPurchase]);
+                setPurchases([...purchases, { id: generateId(), productId: quickBuyProduct.id, quantity: parseInt(quickBuyForm.quantity), price: parseFloat(quickBuyForm.price), date: quickBuyForm.date || new Date().toISOString().split('T')[0] }]);
                 setQuickBuyProduct(null);
                 setQuickBuyForm({ quantity: 5, price: 0, date: new Date().toISOString().split('T')[0] });
                 setShowQuickBuyModal(false);
@@ -702,7 +720,7 @@
             };
 
             const exportData = () => {
-                const data = { exportDate: new Date().toISOString(), version: '5.0-fix', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments };
+                const data = { exportDate: new Date().toISOString(), version: '3.0', products, purchases, sales, customers, creditSales, resellers, resellerStock, resellerSales, resellerReturns, stockAdjustments, config: { lowStockThreshold, expiryAlertDays, staleProductDays } };
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -776,6 +794,7 @@
                             if (data.resellerSales) setResellerSales(data.resellerSales);
                             if (data.resellerReturns) setResellerReturns(data.resellerReturns);
                             if (data.stockAdjustments) setStockAdjustments(data.stockAdjustments);
+                            if (data.config) { setLowStockThreshold(data.config.lowStockThreshold || 3); setExpiryAlertDays(data.config.expiryAlertDays || 30); setStaleProductDays(data.config.staleProductDays || 30); }
                             alert('✅ Importado!');
                             setActiveTab('dashboard');
                         }
@@ -1281,6 +1300,7 @@
                     </main>
 
                     {/* ==================== TODOS OS MODALS ==================== */}
+                    
                     {/* Modal Ajustar Stock */}
                     <Modal isOpen={showAdjustStockModal} onClose={() => { setShowAdjustStockModal(false); setAdjustStockProduct(null); }} title="🔧 Ajustar Stock">
                         <div className="space-y-4">
@@ -1822,7 +1842,7 @@
                     <footer className="bg-gray-800 text-white py-6 mt-12">
                         <div className="max-w-7xl mx-auto px-6 text-center">
                             <p className="text-gray-400"><i className="fas fa-store mr-2"></i>Sistema de Gestão para Revenda O Boticário</p>
-                            <p className="text-gray-500 text-sm mt-2">Versão 5.0 Corrigida • localStorage Funcionando • {new Date().getFullYear()}</p>
+                            <p className="text-gray-500 text-sm mt-2">Versão Estável • Todos Botões Funcionando • {new Date().getFullYear()}</p>
                         </div>
                     </footer>
                 </div>
@@ -1833,3 +1853,4 @@
     </script>
 </body>
 </html>
+
