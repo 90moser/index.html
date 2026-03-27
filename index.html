@@ -1088,11 +1088,39 @@ return (
                                     <StatCard title="Lucro Líquido" value={formatCurrency(financialReport.totalProfit)} icon="fa-coins" color="border-blue-400" />
                                     <StatCard title="Fiado Pendente" value={formatCurrency(pendingCreditSales.reduce((sum, c) => sum + c.amount, 0))} icon="fa-hand-holding-usd" color="border-yellow-400" />
                                 </div>
-                                {resellers.length > 0 && (
+                               {resellers.length > 0 && (
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <StatCard title="💰 Vendas Revendedores (Mês)" value={formatCurrency(resellerSales.filter(s => new Date(s.date) >= getMonthRange().start).reduce((sum, s) => sum + s.totalSale, 0))} icon="fa-store" color="border-green-400" />
-                                        <StatCard title="📦 Produtos em Comodato" value={resellerStock.filter(t => calculateResellerStock(t.resellerId, t.productId) > 0).length} icon="fa-boxes" color="border-purple-400" />
-                                        <StatCard title="💵 A Receber" value={formatCurrency(resellerSales.reduce((sum, s) => sum + s.yourEarnings, 0))} icon="fa-euro-sign" color="border-yellow-400" />
+                                        <StatCard 
+                                            title="💰 Vendas Revendedores (Mês)" 
+                                            value={formatCurrency(
+                                                resellerSales
+                                                    .filter(s => new Date(s.date) >= getMonthRange().start && new Date(s.date) <= getMonthRange().end)
+                                                    .reduce((sum, s) => sum + ((parseFloat(s.salePrice) || 0) * parseInt(s.quantity)), 0)
+                                            )} 
+                                            icon="fa-store" 
+                                            color="border-green-400" 
+                                        />
+                                        <StatCard 
+                                            title="📦 Produtos em Comodato" 
+                                            value={resellerStock.reduce((sum, t) => sum + (t.quantity > 0 ? t.quantity : 0), 0)} 
+                                            icon="fa-boxes" 
+                                            color="border-purple-400" 
+                                        />
+                                        <StatCard 
+                                            title="💵 A Receber" 
+                                            value={formatCurrency(
+                                                resellerSales
+                                                    .filter(s => new Date(s.date) >= getMonthRange().start && new Date(s.date) <= getMonthRange().end)
+                                                    .reduce((sum, sale) => {
+                                                        const rev = resellers.find(r => r.id === sale.resellerId);
+                                                        const comissao = rev ? parseFloat(rev.commissionRate) / 100 : 0;
+                                                        const valorBruto = (parseFloat(sale.salePrice) || 0) * parseInt(sale.quantity);
+                                                        return sum + (valorBruto - (valorBruto * comissao));
+                                                    }, 0)
+                                            )} 
+                                            icon="fa-euro-sign" 
+                                            color="border-yellow-400" 
+                                        />
                                     </div>
                                 )}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
