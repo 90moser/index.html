@@ -703,11 +703,54 @@ const auth = firebase.auth();
             };
 
             const handleReturn = () => {
-                if (!returnForm.resellerId || !returnForm.productId || returnForm.quantity <= 0) { alert('Dados inválidos!'); return; }
-                if (calculateResellerStock(returnForm.resellerId, returnForm.productId) < returnForm.quantity) { alert('Estoque insuficiente!'); return; }
-                setResellerReturns([...resellerReturns, { id: generateId(), ...returnForm, quantity: parseInt(returnForm.quantity), date: returnForm.date || new Date().toISOString().split('T')[0] }]);
-                setReturnForm({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+                // 1. Pegar e validar a quantidade (transforma em número)
+                const qty = parseInt(returnForm.quantity);
+                
+                // 2. Verificação de segurança: impede o erro "Dados inválidos"
+                if (!selectedReseller || !returnForm.productId || isNaN(qty) || qty <= 0) {
+                    alert("Por favor, selecione um produto e insira uma quantidade válida.");
+                    return;
+                }
+
+                // 3. Verificar se o revendedor realmente tem essa quantidade para devolver
+                const stockEntry = resellerStock.find(item => 
+                    item.resellerId === selectedReseller.id && 
+                    item.productId === returnForm.productId
+                );
+
+                if (!stockEntry || stockEntry.quantity < qty) {
+                    alert("Erro: O revendedor não tem essa quantidade em stock para devolver.");
+                    return;
+                }
+
+                // 4. Se tudo estiver OK, cria o registo da devolução
+                const newReturn = {
+                    id: generateId(),
+                    resellerId: selectedReseller.id,
+                    productId: returnForm.productId,
+                    quantity: qty,
+                    date: returnForm.date || new Date().toISOString().split('T')[0],
+                    timestamp: new Date().toISOString()
+                };
+
+                // 5. Atualiza a lista de devoluções (Isto faz o produto voltar ao seu stock principal)
+                setResellerReturns([...resellerReturns, newReturn]);
+
+                // 6. Atualiza o stock do revendedor (Subtrai o que ele devolveu)
+                const updatedResellerStock = resellerStock.map(item => {
+                    if (item.resellerId === selectedReseller.id && item.productId === returnForm.productId) {
+                        return { ...item, quantity: item.quantity - qty };
+                    }
+                    return item;
+                });
+                setResellerStock(updatedResellerStock);
+
+                // 7. Sucesso! Fecha o modal e limpa o formulário
                 setShowReturnModal(false);
+                setReturnForm({ productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
+                
+                // Alerta de confirmação "bonito"
+                console.log("Devolução concluída com sucesso!");
             };
 
             const handleAddSale = () => {
@@ -1545,28 +1588,59 @@ return (
                         </div>
                     </Modal>
 
-                    {/* Modal Devolução */}
-                    <Modal isOpen={showReturnModal} onClose={() => { setShowReturnModal(false); setSelectedReseller(null); }} title="📦 Devolver Produtos">
-                        <div className="space-y-4">
-                            {selectedReseller && (
-                                <div className="p-3 bg-orange-50 rounded-lg border-l-4 border-orange-500">
-                                    <p className="font-bold">{selectedReseller.salonName}</p>
-                                    <p className="text-sm text-gray-600">{selectedReseller.name}</p>
-                                </div>
-                            )}
-                            <SearchableDropdown label="Produto *" options={productOptions} value={returnForm.productId} onChange={(value) => setReturnForm({...returnForm, productId: value})} placeholder="Selecione o produto" renderOption={(option) => (<div><div className="font-medium">{option.label}</div></div>)} />
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
-                                <input type="number" value={returnForm.quantity} onChange={(e) => setReturnForm({...returnForm, quantity: e.target.value})} className="w-full border rounded-lg p-3" min="1" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-2">Data da Devolução</label>
-                                <input type="date" value={returnForm.date} onChange={(e) => setReturnForm({...returnForm, date: e.target.value})} className="w-full border rounded-lg p-3" />
-                            </div>
-                            <button onClick={handleReturn} className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg transition"><i className="fas fa-undo mr-2"></i>Devolver Produtos</button>
-                        </div>
-                    </Modal>
+                  {/* Modal Devolução */}
+<Modal isOpen={showReturnModal} onClose={() => { setShowReturnModal(false); setSelectedReseller(null); }} title="📦 Devolver Produtos">
+    <div className="space-y-4">
+        {selectedReseller && (
+            <div className="p-3 bg-orange-50 rounded-lg border-l-4 border-orange-500">
+                <p className="font-bold">{selectedReseller.salonName}</p>
+                <p className="text-sm text-gray-600">{selectedReseller.name}</p>
+            </div>
+        )}
 
+        <div>
+            <label className="block text-gray-700 font-medium mb-2">Produto para Devolver *</label>
+            <select 
+                className="w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-orange-500"
+                value={returnForm.productId}
+                onChange={(e) => setReturnForm({...returnForm, productId: e.target.value})}
+                required
+            >
+                <option value="">Selecione o produto que ela tem no salão...</option>
+                {/* Aqui usamos a variável que estava sublinhada de vermelho */}
+                {selectedReseller && resellerStock && resellerStock
+                    .filter(item => item.resellerId === selectedReseller.id && item.quantity > 0)
+                    .map(item => {
+                        const prod = products.find(p => p.id === item.productId);
+                        return (
+                            <option key={item.id} value={item.productId}>
+                                {prod ? prod.name : 'Produto não encontrado'} — ({item.quantity} un. em posse)
+                            </option>
+                        );
+                    })
+                }
+            </select>
+        </div>
+
+        <div>
+            <label className="block text-gray-700 font-medium mb-2">Quantidade *</label>
+            <input 
+                type="number" 
+                value={returnForm.quantity} 
+                onChange={(e) => setReturnForm({...returnForm, quantity: e.target.value})} 
+                className="w-full border rounded-lg p-3 text-sm" 
+                min="1" 
+            />
+        </div>
+
+        <button 
+            onClick={handleReturn} 
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-bold"
+        >
+            <i className="fas fa-undo mr-2"></i>Confirmar Devolução
+        </button>
+    </div>
+</Modal>
                     {/* Modal Venda Revendedor */}
                     <Modal isOpen={showResellerSaleModal} onClose={() => { setShowResellerSaleModal(false); setSelectedReseller(null); }} title="💰 Registrar Venda do Revendedor">
                         <div className="space-y-4">
@@ -1971,6 +2045,5 @@ return (
     </script>
 </body>
 </html>
-
 
 
