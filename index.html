@@ -719,8 +719,7 @@ const [selectedResellerInventory, setSelectedResellerInventory] = useState(null)
                 setTransferForm({ resellerId: '', productId: '', quantity: 1, date: new Date().toISOString().split('T')[0] });
                 setShowTransferModal(false);
             };
-
-            const handleResellerSale = () => {
+const handleResellerSale = () => {
     const qty = parseInt(resellerSaleForm.quantity);
     if (!selectedReseller || !resellerSaleForm.productId || isNaN(qty) || qty <= 0) {
         alert("Por favor, selecione um produto e insira uma quantidade válida.");
@@ -738,13 +737,21 @@ const [selectedResellerInventory, setSelectedResellerInventory] = useState(null)
         return;
     }
 
-    // Regista a venda
+    // --- A CORREÇÃO MÁGICA ESTÁ AQUI ---
+    // Vai buscar o preço de catálogo do produto automaticamente
+    const product = products.find(p => p.id === resellerSaleForm.productId);
+    const defaultPrice = product ? parseFloat(product.catalogPrice) : 0;
+    
+    // Se digitou um preço no formulário usa ele, senão usa o preço padrão
+    const finalSalePrice = resellerSaleForm.salePrice ? parseFloat(resellerSaleForm.salePrice) : defaultPrice;
+
+    // Regista a venda com o PREÇO CORRETO
     const newSale = {
         id: generateId(),
         resellerId: selectedReseller.id,
         productId: resellerSaleForm.productId,
         quantity: qty,
-        salePrice: parseFloat(resellerSaleForm.salePrice),
+        salePrice: finalSalePrice,
         date: resellerSaleForm.date || new Date().toISOString().split('T')[0],
         timestamp: new Date().toISOString()
     };
