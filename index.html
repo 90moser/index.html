@@ -837,8 +837,22 @@ const handleResellerSale = () => {
         item.productId === resellerSaleForm.productId
     );
 
-    if (!stockEntry || stockEntry.quantity < qty) {
-        alert("Erro: O revendedor não tem essa quantidade em stock para vender.");
+    // 🔍 DEBUG: Adicionando logs para rastrear o problema
+    console.log("🔍 DEBUG - Estoque Revendedor:");
+    console.log("- Revendedor ID:", selectedReseller.id);
+    console.log("- Produto ID:", resellerSaleForm.productId);
+    console.log("- Estoque encontrado:", stockEntry);
+    console.log("- Quantidade em estoque:", stockEntry ? stockEntry.quantity : 'N/A');
+    console.log("- Quantidade pedida:", qty);
+    console.log("- Tipo da quantidade estoque:", typeof (stockEntry ? stockEntry.quantity : 'undefined'));
+    console.log("- Tipo da quantidade pedida:", typeof qty);
+
+    // 🔧 CORREÇÃO: Garante que estamos comparando números
+    const availableStock = stockEntry ? parseInt(stockEntry.quantity) || 0 : 0;
+    
+    if (!stockEntry || availableStock < qty) {
+        console.log(`❌ ERRO: Estoque insuficiente! Disponível: ${availableStock}, Pedido: ${qty}`);
+        alert(`Erro: O revendedor não tem essa quantidade em stock para vender.\nEstoque disponível: ${availableStock}\nQuantidade pedida: ${qty}`);
         return;
     }
 
@@ -865,12 +879,13 @@ const handleResellerSale = () => {
     // Desconta o produto APENAS do stock do revendedor
     const updatedResellerStock = resellerStock.map(item => {
         if (item.resellerId === selectedReseller.id && item.productId === resellerSaleForm.productId) {
-            return { ...item, quantity: item.quantity - qty };
+            return { ...item, quantity: parseInt(item.quantity) - qty };
         }
         return item;
     });
     setResellerStock(updatedResellerStock);
 
+    console.log(`✅ Venda registrada! Estoque atualizado: ${availableStock - qty}`);
     setShowResellerSaleModal(false);
     setResellerSaleForm({ productId: '', quantity: 1, salePrice: '', date: new Date().toISOString().split('T')[0] });
 };
