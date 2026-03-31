@@ -309,7 +309,7 @@
         };
 
         // ==================== COMPONENTES ====================
-        const StatCard = ({ title, value, icon, color, subtitle, smallText }) => (
+        const StatCard = ({ title, value, icon, color, subtitle, smallText, subValues }) => (
             <div className={`bg-white rounded-lg p-4 md:p-6 card-hover shadow-md border-l-4 ${color}`}>
                 <div className="flex items-center justify-between">
                     <div>
@@ -317,6 +317,16 @@
                         <p className="text-xl md:text-2xl font-bold text-gray-800">{value}</p>
                         {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
                         {smallText && <p className="text-xs text-gray-500 mt-1">{smallText}</p>}
+                        {subValues && (
+                            <div className="mt-2 space-y-1">
+                                {subValues.map((subValue, index) => (
+                                    <div key={index} className="flex justify-between text-xs">
+                                        <span className="text-gray-600">{subValue.label}:</span>
+                                        <span className={`font-medium ${subValue.color || 'text-gray-800'}`}>{subValue.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className={`p-3 rounded-full ${color.replace('border-', 'bg-').replace('-400', '-100')}`}>
                         <i className={`fas ${icon} text-xl`}></i>
@@ -706,6 +716,8 @@ const [selectedResellerForHistory, setSelectedResellerForHistory] = useState(nul
             const stockValueReport = useMemo(() => {
                 let totalPaidValue = 0;
                 let totalSaleValue = 0;
+                
+                // 1. ESTOQUE FÍSICO (no depósito)
                 products.forEach(p => {
                     const stock = calculateStock(p.id);
                     if (stock > 0) {
@@ -713,7 +725,37 @@ const [selectedResellerForHistory, setSelectedResellerForHistory] = useState(nul
                         totalSaleValue += stock * (parseFloat(p.catalogPrice) || 0);
                     }
                 });
-                return { totalPaidValue, totalSaleValue, potentialProfit: totalSaleValue - totalPaidValue, profitMargin: totalPaidValue > 0 ? ((totalSaleValue - totalPaidValue) / totalPaidValue) * 100 : 0 };
+                
+                // 2. ESTOQUE EM COMODATO (com revendedores)
+                let resellerPaidValue = 0;
+                let resellerSaleValue = 0;
+                resellerStock.forEach(item => {
+                    if (item.quantity > 0) {
+                        const product = products.find(p => p.id === item.productId);
+                        if (product) {
+                            resellerPaidValue += item.quantity * (parseFloat(product.costPrice || 0));
+                            resellerSaleValue += item.quantity * (parseFloat(product.catalogPrice || 0));
+                        }
+                    }
+                });
+                
+                // 3. TOTAIS COMPLETOS
+                const totalPaidComplete = totalPaidValue + resellerPaidValue;
+                const totalSaleComplete = totalSaleValue + resellerSaleValue;
+                const potentialProfitComplete = totalSaleComplete - totalPaidComplete;
+                const profitMarginComplete = totalPaidComplete > 0 ? ((totalSaleComplete - totalPaidComplete) / totalPaidComplete) * 100 : 0;
+                
+                return { 
+                    totalPaidValue: totalPaidComplete, 
+                    totalSaleValue: totalSaleComplete, 
+                    potentialProfit: potentialProfitComplete, 
+                    profitMargin: profitMarginComplete,
+                    // Valores separados para UI detalhada
+                    physicalPaidValue: totalPaidValue,
+                    physicalSaleValue: totalSaleValue,
+                    resellerPaidValue: resellerPaidValue,
+                    resellerSaleValue: resellerSaleValue
+                };
             }, [products, purchases, sales, resellerStock, resellerSales, resellerReturns, stockAdjustments]);
 
             const customersWithStats = useMemo(() => {
@@ -1250,6 +1292,11 @@ return (
                                             value={resellerStock.reduce((sum, t) => sum + (t.quantity > 0 ? t.quantity : 0), 0)} 
                                             icon="fa-boxes" 
                                             color="border-purple-400" 
+                                            smallText={`${resellerStock.reduce((sum, t) => sum + (t.quantity > 0 ? t.quantity : 0), 0)} itens`}
+                                            subValues={[
+                                                { label: "Valor Custo", value: formatCurrency(stockValueReport.resellerPaidValue), color: "text-blue-700" },
+                                                { label: "Valor Venda", value: formatCurrency(stockValueReport.resellerSaleValue), color: "text-green-700" }
+                                            ]}
                                         />
                                         <StatCard 
                                             title="💵 A Receber" 
