@@ -884,22 +884,31 @@ const handleResellerSale = () => {
     };
     setResellerSales([...resellerSales, newSale]);
 
-    // 🔧 CORREÇÃO: Cria um registro de saída no estoque do revendedor
-    const stockOutEntry = {
-        id: generateId(),
-        resellerId: selectedReseller.id,
-        productId: resellerSaleForm.productId,
-        quantity: -qty, // Quantidade negativa para representar saída
-        type: 'saida_venda',
-        date: new Date().toISOString().split('T')[0],
-        timestamp: new Date().toISOString(),
-        relatedSaleId: newSale.id // Referência para auditoria
-    };
+    // 🔧 CORREÇÃO: Subtrai do estoque existente em vez de criar novo documento
+    const updatedResellerStock = resellerStock.map(item => {
+        // Encontra o item correto do estoque do revendedor
+        if (item.resellerId === selectedReseller.id && 
+            item.productId === resellerSaleForm.productId && 
+            item.quantity > 0) {
+            
+            // Subtrai a quantidade vendida
+            const newQuantity = parseInt(item.quantity) - qty;
+            console.log(`🔄 Atualizando estoque: ${item.quantity} → ${newQuantity}`);
+            
+            // Se o estoque chegar a 0, mantém o item com quantity 0 para histórico
+            return { ...item, quantity: newQuantity };
+        }
+        return item;
+    });
     
-    // Adiciona a saída ao resellerStock para manter o controle correto
-    setResellerStock([...resellerStock, stockOutEntry]);
+    // Aplica as atualizações no estoque
+    setResellerStock(updatedResellerStock);
     
-    console.log(`✅ Venda registrada! Saída de estoque criada: -${qty} unidades`);
+    console.log(`✅ Venda registrada! Estoque atualizado no Firestore: -${qty} unidades`);
+    console.log(`📊 Estoque restante: ${updatedResellerStock.filter(item => 
+        item.resellerId === selectedReseller.id && 
+        item.productId === resellerSaleForm.productId
+    ).reduce((sum, item) => sum + parseInt(item.quantity || 0), 0)} unidades`);
     setShowResellerSaleModal(false);
     setResellerSaleForm({ productId: '', quantity: 1, salePrice: '', date: new Date().toISOString().split('T')[0] });
 };
