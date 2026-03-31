@@ -1399,6 +1399,20 @@ return (
     const valorComissao = totalVendido * (r.commissionRate / 100);
     const valorAReceber = totalVendido - valorComissao;
 
+    // 2. CALCULA O VALOR DO ESTOQUE EM COMODATO
+    const estoqueDesteRevendedor = resellerStock.filter(item => item.resellerId === r.id && item.quantity > 0);
+    const capitalRetido = estoqueDesteRevendedor.reduce((acc, item) => {
+        const produto = products.find(p => p.id === item.productId);
+        const custoUnitario = produto ? parseFloat(produto.costPrice || 0) : 0;
+        return acc + (item.quantity * custoUnitario);
+    }, 0);
+    
+    const lucroPotencial = estoqueDesteRevendedor.reduce((acc, item) => {
+        const produto = products.find(p => p.id === item.productId);
+        const vendaUnitario = produto ? parseFloat(produto.catalogPrice || 0) : 0;
+        return acc + (item.quantity * vendaUnitario);
+    }, 0);
+
     return (
         <div key={r.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden">
             <div className="flex justify-between items-start mb-3">
@@ -1429,6 +1443,33 @@ return (
                 <div className="flex justify-between text-sm pt-1 border-t mt-1">
                     <span className="text-gray-800 font-medium">A Receber:</span>
                     <span className="font-bold text-green-600">{formatCurrency(valorAReceber)}</span>
+                </div>
+            </div>
+
+            {/* INDICADORES FINANCEIROS DO ESTOQUE EM COMODATO */}
+            <div className="bg-blue-50 p-3 rounded-lg mb-4 space-y-2 border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                    <i className="fas fa-boxes text-blue-600"></i>
+                    <h4 className="font-medium text-blue-900">Estoque em Comodato</h4>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-blue-700">Capital Retido (Custo):</span>
+                        <span className="font-bold text-blue-800">{formatCurrency(capitalRetido)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span className="text-blue-700">Lucro Potencial (Rua):</span>
+                        <span className="font-bold text-green-700">{formatCurrency(lucroPotencial)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1 border-t border-blue-300">
+                        <span className="text-blue-900 font-medium">Margem Potencial:</span>
+                        <span className="font-bold text-purple-700">
+                            {lucroPotencial > 0 ? 
+                                `${((lucroPotencial - capitalRetido) / lucroPotencial * 100).toFixed(1)}%` : 
+                                '0%'
+                            }
+                        </span>
+                    </div>
                 </div>
             </div>
 
