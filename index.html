@@ -831,18 +831,33 @@ const handleResellerSale = () => {
         return;
     }
 
-    // 🔧 CORREÇÃO: Usa a mesma lógica da UI para calcular estoque consolidado
-    const totalStockForProduct = calculateResellerStock(selectedReseller.id, resellerSaleForm.productId);
+    // 🔧 CORREÇÃO: Usa EXATAMENTE a mesma query da UI
+    const stockItems = resellerStock.filter(item => 
+        item.resellerId === selectedReseller.id && 
+        item.productId === resellerSaleForm.productId
+    );
     
-    console.log("🔍 DEBUG - Estoque Revendedor (Consolidado):");
+    // Se não encontrou nenhum item, estoque é 0
+    if (stockItems.length === 0) {
+        console.log("❌ ERRO: Produto não encontrado no estoque do revendedor!");
+        alert(`Erro: O revendedor não tem este produto em stock.\nEstoque disponível: 0\nQuantidade pedida: ${qty}`);
+        return;
+    }
+    
+    // Soma todas as quantidades encontradas (exatamente como a UI faz)
+    const totalStockForProduct = stockItems.reduce((sum, item) => sum + parseInt(item.quantity || 0), 0);
+    
+    console.log("🔍 DEBUG - Estoque Revendedor (Query IDÊNTICA à UI):");
     console.log("- Revendedor ID:", selectedReseller.id);
     console.log("- Produto ID:", resellerSaleForm.productId);
-    console.log("- Estoque consolidado (total):", totalStockForProduct);
+    console.log("- Itens encontrados:", stockItems.length);
+    console.log("- Itens completos:", stockItems);
+    console.log("- Estoque total somado:", totalStockForProduct);
     console.log("- Quantidade pedida:", qty);
     
-    // Valida usando o estoque consolidado igual à UI
+    // Valida usando o estoque somado igual à UI
     if (totalStockForProduct < qty) {
-        console.log(`❌ ERRO: Estoque insuficiente! Consolidado: ${totalStockForProduct}, Pedido: ${qty}`);
+        console.log(`❌ ERRO: Estoque insuficiente! Total somado: ${totalStockForProduct}, Pedido: ${qty}`);
         alert(`Erro: O revendedor não tem essa quantidade em stock para vender.\nEstoque disponível: ${totalStockForProduct}\nQuantidade pedida: ${qty}`);
         return;
     }
