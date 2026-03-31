@@ -130,11 +130,19 @@
                 }
             }
             
-            // Configura timeouts e retry para operações de rede
-            db.settings({
-                cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-                merge: true
-            });
+            // Configura timeouts e retry para operações de rede (apenas se não foi configurado antes)
+            try {
+                if (!db._settingsInitialized) {
+                    db.settings({
+                        cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+                        merge: true
+                    });
+                    db._settingsInitialized = true;
+                    console.log("✅ Configurações do Firestore aplicadas");
+                }
+            } catch (error) {
+                console.warn("⚠️ Configurações do Firestore já foram aplicadas:", error.message);
+            }
             
             // Listener de conectividade
             window.addEventListener('online', () => {
@@ -375,6 +383,9 @@
                 setResellers(updatedResellers);
                 // Como o Firebase já está escutando o 'resellers', ele vai salvar na nuvem automaticamente!
             };
+            
+            // Alias para compatibilidade com o código existente
+            const handleVisitReseller = handleRegisterVisit;
             const [products, setProducts] = useState([]);
             const [purchases, setPurchases] = useState([]);
             const [sales, setSales] = useState([]);
@@ -1328,9 +1339,17 @@ return (
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-4"><p className="text-purple-100 text-sm">Total Revendedores</p><p className="text-2xl font-bold">{resellers.length}</p></div>
-                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4"><p className="text-green-100 text-sm">Vendas Totais</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.totalSale, 0))}</p></div>
-                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4"><p className="text-blue-100 text-sm">Seu Ganho (75%)</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.yourEarnings, 0))}</p></div>
-                                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-4"><p className="text-orange-100 text-sm">Comissões (25%)</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + s.commission, 0))}</p></div>
+                                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-4"><p className="text-green-100 text-sm">Vendas Totais</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => sum + (s.salePrice * s.quantity), 0))}</p></div>
+                                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-4"><p className="text-blue-100 text-sm">Seu Ganho</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => {
+                                        const revendedor = resellers.find(r => r.id === s.resellerId);
+                                        const commissionRate = revendedor ? revendedor.commissionRate : 25;
+                                        return sum + (s.salePrice * s.quantity) * ((100 - commissionRate) / 100);
+                                    }, 0))}</p></div>
+                                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-4"><p className="text-orange-100 text-sm">Comissões</p><p className="text-2xl font-bold">{formatCurrency(resellerSales.reduce((sum, s) => {
+                                        const revendedor = resellers.find(r => r.id === s.resellerId);
+                                        const commissionRate = revendedor ? revendedor.commissionRate : 25;
+                                        return sum + (s.salePrice * s.quantity) * (commissionRate / 100);
+                                    }, 0))}</p></div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {resellers.map(r => {
