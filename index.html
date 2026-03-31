@@ -831,60 +831,23 @@ const handleResellerSale = () => {
         return;
     }
 
-    // Verifica se o revendedor tem stock suficiente na maleta dele
-    const stockEntry = resellerStock.find(item => 
-        item.resellerId === selectedReseller.id && 
-        item.productId === resellerSaleForm.productId
-    );
-
-    // 🔍 DEBUG: Adicionando logs para rastrear o problema
-    console.log("🔍 DEBUG - Estoque Revendedor:");
+    // 🔧 CORREÇÃO: Usa a mesma lógica da UI para calcular estoque consolidado
+    const totalStockForProduct = calculateResellerStock(selectedReseller.id, resellerSaleForm.productId);
+    
+    console.log("🔍 DEBUG - Estoque Revendedor (Consolidado):");
     console.log("- Revendedor ID:", selectedReseller.id);
     console.log("- Produto ID:", resellerSaleForm.productId);
-    console.log("- Estoque encontrado:", stockEntry);
-    console.log("- Tipo do estoque encontrado:", typeof stockEntry);
-    console.log("- É array?", Array.isArray(stockEntry));
-    
-    // 🔧 CORREÇÃO: Trata caso onde estoque é um array
-    let stockItem = null;
-    let availableStock = 0;
-    
-    if (Array.isArray(stockEntry)) {
-        // Se for array, procura o item pelo productId dentro do array
-        stockItem = stockEntry.find(item => 
-            item && item.id === resellerSaleForm.productId
-        );
-        if (stockItem && stockItem.quantity !== undefined) {
-            availableStock = parseInt(stockItem.quantity) || 0;
-            console.log("✅ Produto localizado no array. Quantidade real:", availableStock);
-        } else {
-            console.log("❌ Produto não encontrado no array de estoque");
-        }
-    } else if (stockEntry && typeof stockEntry === 'object') {
-        // Se for objeto, usa lógica anterior
-        const quantityField = (
-            stockEntry.quantity !== undefined ? 'quantity' :
-            stockEntry.estoque !== undefined ? 'estoque' :
-            stockEntry.stock !== undefined ? 'stock' :
-            stockEntry.amount !== undefined ? 'amount' :
-            stockEntry.total !== undefined ? 'total' : null
-        );
-        
-        if (quantityField) {
-            availableStock = parseInt(stockEntry[quantityField]) || 0;
-            console.log(`✅ Campo de quantidade encontrado: [${quantityField}] com valor [${availableStock}]`);
-        }
-        stockItem = stockEntry;
-    }
-    
-    console.log("- Quantidade disponível final:", availableStock);
+    console.log("- Estoque consolidado (total):", totalStockForProduct);
     console.log("- Quantidade pedida:", qty);
     
-    if (!stockItem || availableStock < qty) {
-        console.log(`❌ ERRO: Estoque insuficiente! Disponível: ${availableStock}, Pedido: ${qty}`);
-        alert(`Erro: O revendedor não tem essa quantidade em stock para vender.\nEstoque disponível: ${availableStock}\nQuantidade pedida: ${qty}`);
+    // Valida usando o estoque consolidado igual à UI
+    if (totalStockForProduct < qty) {
+        console.log(`❌ ERRO: Estoque insuficiente! Consolidado: ${totalStockForProduct}, Pedido: ${qty}`);
+        alert(`Erro: O revendedor não tem essa quantidade em stock para vender.\nEstoque disponível: ${totalStockForProduct}\nQuantidade pedida: ${qty}`);
         return;
     }
+    
+    console.log(`✅ Total de estoque consolidado: ${totalStockForProduct}, Pedido: ${qty}`);
 
     // --- A CORREÇÃO MÁGICA ESTÁ AQUI ---
     // Vai buscar o preço de catálogo do produto automaticamente
@@ -906,43 +869,22 @@ const handleResellerSale = () => {
     };
     setResellerSales([...resellerSales, newSale]);
 
-    // Desconta o produto APENAS do stock do revendedor
-    const updatedResellerStock = resellerStock.map(item => {
-        if (item.resellerId === selectedReseller.id && item.productId === resellerSaleForm.productId) {
-            // 🔧 CORREÇÃO: Trata atualização para array ou objeto
-            if (Array.isArray(item)) {
-                // Se for array, atualiza o item correto dentro do array
-                const updatedArray = item.map(arrayItem => {
-                    if (arrayItem && arrayItem.id === resellerSaleForm.productId) {
-                        const updatedArrayItem = { ...arrayItem };
-                        updatedArrayItem.quantity = parseInt(arrayItem.quantity) - qty;
-                        console.log(`✅ Array atualizado: ${arrayItem.quantity} → ${updatedArrayItem.quantity}`);
-                        return updatedArrayItem;
-                    }
-                    return arrayItem;
-                });
-                console.log("✅ Estoque do array atualizado com sucesso!");
-                return updatedArray;
-            } else {
-                // Se for objeto, usa lógica anterior
-                const updatedItem = { ...item };
-                const quantityField = (
-                    item.quantity !== undefined ? 'quantity' :
-                    item.estoque !== undefined ? 'estoque' :
-                    item.stock !== undefined ? 'stock' :
-                    item.amount !== undefined ? 'amount' :
-                    item.total !== undefined ? 'total' : 'quantity'
-                );
-                updatedItem[quantityField] = parseInt(item[quantityField]) - qty;
-                console.log(`✅ Objeto atualizado: campo [${quantityField}] de ${item[quantityField]} → ${updatedItem[quantityField]}`);
-                return updatedItem;
-            }
-        }
-        return item;
-    });
-    setResellerStock(updatedResellerStock);
-
-    console.log(`✅ Venda registrada! Estoque atualizado: ${availableStock - qty}`);
+    // 🔧 CORREÇÃO: Cria um registro de saída no estoque do revendedor
+    const stockOutEntry = {
+        id: generateId(),
+        resellerId: selectedReseller.id,
+        productId: resellerSaleForm.productId,
+        quantity: -qty, // Quantidade negativa para representar saída
+        type: 'saida_venda',
+        date: new Date().toISOString().split('T')[0],
+        timestamp: new Date().toISOString(),
+        relatedSaleId: newSale.id // Referência para auditoria
+    };
+    
+    // Adiciona a saída ao resellerStock para manter o controle correto
+    setResellerStock([...resellerStock, stockOutEntry]);
+    
+    console.log(`✅ Venda registrada! Saída de estoque criada: -${qty} unidades`);
     setShowResellerSaleModal(false);
     setResellerSaleForm({ productId: '', quantity: 1, salePrice: '', date: new Date().toISOString().split('T')[0] });
 };
