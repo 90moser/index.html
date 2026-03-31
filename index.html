@@ -842,15 +842,28 @@ const handleResellerSale = () => {
     console.log("- Revendedor ID:", selectedReseller.id);
     console.log("- Produto ID:", resellerSaleForm.productId);
     console.log("- Estoque encontrado:", stockEntry);
-    console.log("- Quantidade em estoque:", stockEntry ? stockEntry.quantity : 'N/A');
-    console.log("- Quantidade pedida:", qty);
-    console.log("- Tipo da quantidade estoque:", typeof (stockEntry ? stockEntry.quantity : 'undefined'));
-    console.log("- Tipo da quantidade pedida:", typeof qty);
-
-    // 🔧 CORREÇÃO: Garante que estamos comparando números
-    const availableStock = stockEntry ? parseInt(stockEntry.quantity) || 0 : 0;
+    console.log("- Estrutura completa do objeto:", stockEntry ? Object.keys(stockEntry) : 'N/A');
+    console.log("- Todos os valores do objeto:", stockEntry);
     
-    if (!stockEntry || availableStock < qty) {
+    // 🔧 CORREÇÃO: Verifica todos os possíveis campos de quantidade
+    const quantityField = stockEntry ? (
+        stockEntry.quantity !== undefined ? 'quantity' :
+        stockEntry.estoque !== undefined ? 'estoque' :
+        stockEntry.stock !== undefined ? 'stock' :
+        stockEntry.amount !== undefined ? 'amount' :
+        stockEntry.total !== undefined ? 'total' : null
+    ) : null;
+    
+    const availableStock = stockEntry && quantityField ? 
+        parseInt(stockEntry[quantityField]) || 0 : 0;
+    
+    console.log("- Campo de quantidade encontrado:", quantityField);
+    console.log("- Valor do campo:", stockEntry && quantityField ? stockEntry[quantityField] : 'N/A');
+    console.log("- Quantidade pedida:", qty);
+    console.log("- Tipo da quantidade estoque:", typeof availableStock);
+    console.log("- Tipo da quantidade pedida:", typeof qty);
+    
+    if (!stockEntry || !quantityField || availableStock < qty) {
         console.log(`❌ ERRO: Estoque insuficiente! Disponível: ${availableStock}, Pedido: ${qty}`);
         alert(`Erro: O revendedor não tem essa quantidade em stock para vender.\nEstoque disponível: ${availableStock}\nQuantidade pedida: ${qty}`);
         return;
@@ -879,7 +892,12 @@ const handleResellerSale = () => {
     // Desconta o produto APENAS do stock do revendedor
     const updatedResellerStock = resellerStock.map(item => {
         if (item.resellerId === selectedReseller.id && item.productId === resellerSaleForm.productId) {
-            return { ...item, quantity: parseInt(item.quantity) - qty };
+            // 🔧 CORREÇÃO: Usa o campo dinâmico encontrado
+            const updatedItem = { ...item };
+            updatedItem[quantityField] = parseInt(item[quantityField]) - qty;
+            console.log(`✅ Sucesso: Validando campo [${quantityField}] com valor [${item[quantityField]}]`);
+            console.log(`✅ Estoque atualizado: ${item[quantityField]} → ${updatedItem[quantityField]}`);
+            return updatedItem;
         }
         return item;
     });
