@@ -75,11 +75,102 @@
       appId: "1:893230315835:web:15fe289a91fb1da42b1f1e"
     };
 
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.firestore();
-const auth = firebase.auth();
+    // SISTEMA ROBUSTO DE CONEXÃO COM FIREBASE
+    let db, auth, reconnectAttempts = 0, maxReconnectAttempts = 5;
+    let isOnline = navigator.onLine;
+    
+    // Função de reconexão automática com backoff exponencial
+    const attemptReconnect = async (delay = 1000) => {
+        if (reconnectAttempts >= maxReconnectAttempts) {
+            console.error("❌ Máximo de tentativas de reconexão atingido");
+            return;
+        }
+        
+        reconnectAttempts++;
+        console.log(`🔄 Tentativa ${reconnectAttempts}/${maxReconnectAttempts} de reconexão em ${delay}ms...`);
+        
+        setTimeout(async () => {
+            try {
+                // Testa conectividade básica
+                await db.collection('connectivity_test').limit(1).get();
+                console.log("✅ Conexão restaurada com sucesso!");
+                reconnectAttempts = 0;
+            } catch (error) {
+                console.error(`❌ Falha na tentativa ${reconnectAttempts}:`, error.message);
+                // Backoff exponencial: 1s, 2s, 4s, 8s, 16s
+                attemptReconnect(Math.min(delay * 2, 16000));
+            }
+        }, delay);
+    };
+    
+    // Inicialização do Firebase com tratamento robusto de erros
+    const initializeFirebase = async () => {
+        try {
+            if (!window.firebase || !window.firebase.apps || !window.firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log("✅ Firebase inicializado com sucesso!");
+            }
+            
+            db = firebase.firestore();
+            auth = firebase.auth();
+            
+            // 🔥 PERSISTÊNCIA OFFLINE - ESSENCIAL PARA REDES INSTÁVEIS
+            try {
+                await db.enablePersistence({ 
+                    synchronizeTabs: true 
+                });
+                console.log("✅ Persistência offline ativada!");
+            } catch (err) {
+                if (err.code === 'failed-precondition') {
+                    console.warn("⚠️ Múltiplas abas abertas. Persistência desativada.");
+                } else if (err.code === 'unimplemented') {
+                    console.warn("⚠️ Browser não suporta persistência offline.");
+                } else {
+                    console.error("❌ Erro na persistência:", err);
+                }
+            }
+            
+            // Configura timeouts e retry para operações de rede
+            db.settings({
+                cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+                merge: true
+            });
+            
+            // Listener de conectividade
+            window.addEventListener('online', () => {
+                isOnline = true;
+                console.log("🌐 Conexão restaurada!");
+                reconnectAttempts = 0;
+            });
+            
+            window.addEventListener('offline', () => {
+                isOnline = false;
+                console.log("📵 Modo offline ativado - Dados serão sincronizados quando voltar online");
+            });
+            
+            // Testa conexão inicial
+            if (navigator.onLine) {
+                await db.collection('connectivity_test').limit(1).get();
+                console.log("✅ Conexão com Firestore estabelecida!");
+            } else {
+                console.log("📵 Iniciando em modo offline");
+            }
+            
+        } catch (error) {
+            console.error("❌ Erro crítico na inicialização do Firebase:", error);
+            
+            // Tratamento específico para erros de rede
+            if (error.message.includes('network') || error.message.includes('ERR_NAME_NOT_RESOLVED')) {
+                console.log("🔄 Detectado problema de rede. Tentando reconexão automática...");
+                await attemptReconnect();
+            } else {
+                alert("Erro ao conectar com o banco de dados. Verifique o console para detalhes.");
+            }
+        }
+    };
+    
+    // Inicializa o Firebase
+    initializeFirebase();
 
 
         // ==================== UTILITÁRIOS ====================
@@ -477,7 +568,10 @@ const [selectedResellerInventory, setSelectedResellerInventory] = useState(null)
                 const totalResellerSales = resellerSales.filter(s => s.productId === productId).reduce((sum, s) => sum + parseInt(s.quantity), 0);
                 const adjustmentsIn = stockAdjustments.filter(a => a.productId === productId && a.type === 'entrada').reduce((sum, a) => sum + parseInt(a.quantity), 0);
                 const adjustmentsOut = stockAdjustments.filter(a => a.productId === productId && a.type === 'saida').reduce((sum, a) => sum + parseInt(a.quantity), 0);
-                return totalIn - totalOut - totalToResellers + totalReturned + totalResellerSales + adjustmentsIn - adjustmentsOut;
+                
+                // ❌ ERRO CORRIGIDO: totalResellerSales estava sendo ADICIONADO em vez de SUBTRAÍDO
+                // ✅ LÓGICA CORRETA: Entradas - Saídas - Transferências para Revendedores + Devoluções - Vendas dos Revendedores + Ajustes
+                return totalIn - totalOut - totalToResellers + totalReturned - totalResellerSales + adjustmentsIn - adjustmentsOut;
             };
 
             const calculateResellerStock = (resellerId, productId) => {
